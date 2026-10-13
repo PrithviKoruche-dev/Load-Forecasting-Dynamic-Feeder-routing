@@ -1,0 +1,66 @@
+Clear
+New Circuit.Urban basekv=11 pu=1.0 phases=3 bus1=SUB MVAsc3=500 MVAsc1=500
+New Linecode.LC11 nphases=3 r1=0.35 x1=0.30 r0=0.7 x0=0.6 units=km normamps=220 emergamps=260
+
+! Feeder A: SUB - A1 - A2 - A3
+New Line.A1 bus1=SUB bus2=A1 linecode=LC11 length=1.0 units=km
+New Line.A2 bus1=A1  bus2=A2 linecode=LC11 length=1.0 units=km switch=yes
+New Line.A3 bus1=A2  bus2=A3 linecode=LC11 length=1.0 units=km
+
+! Feeder B: SUB - B1 - B2 - B3
+New Line.B1 bus1=SUB bus2=B1 linecode=LC11 length=1.0 units=km
+New Line.B2 bus1=B1  bus2=B2 linecode=LC11 length=1.0 units=km switch=yes
+New Line.B3 bus1=B2  bus2=B3 linecode=LC11 length=1.0 units=km
+
+! MV tie between feeder ends (normally open)
+New Line.TIE1 bus1=A3 bus2=B3 linecode=LC11 length=0.3 units=km switch=yes
+Open Line.TIE1 term=1
+
+! Distribution transformers 11/0.415 kV, 500 kVA
+New Transformer.T1 phases=3 windings=2 buses=(A1, L1) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Transformer.T2 phases=3 windings=2 buses=(A2, L2) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Transformer.T3 phases=3 windings=2 buses=(A3, L3) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Transformer.T4 phases=3 windings=2 buses=(B1, L4) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Transformer.T5 phases=3 windings=2 buses=(B2, L5) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Transformer.T6 phases=3 windings=2 buses=(B3, L6) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+
+! Load block a (fixed, 80%) on the LV bus
+New Load.LD1a bus1=L1 phases=3 kV=0.415 kW=240 pf=0.95
+New Load.LD2a bus1=L2 phases=3 kV=0.415 kW=240 pf=0.95
+New Load.LD3a bus1=L3 phases=3 kV=0.415 kW=240 pf=0.95
+New Load.LD4a bus1=L4 phases=3 kV=0.415 kW=240 pf=0.95
+New Load.LD5a bus1=L5 phases=3 kV=0.415 kW=240 pf=0.95
+New Load.LD6a bus1=L6 phases=3 kV=0.415 kW=240 pf=0.95
+
+! Load block b (movable, 20%) on its own bus Lxb
+New Load.LD1b bus1=L1b phases=3 kV=0.415 kW=60 pf=0.95
+New Load.LD2b bus1=L2b phases=3 kV=0.415 kW=60 pf=0.95
+New Load.LD3b bus1=L3b phases=3 kV=0.415 kW=60 pf=0.95
+New Load.LD4b bus1=L4b phases=3 kV=0.415 kW=60 pf=0.95
+New Load.LD5b bus1=L5b phases=3 kV=0.415 kW=60 pf=0.95
+New Load.LD6b bus1=L6b phases=3 kV=0.415 kW=60 pf=0.95
+
+! LV switches: HOME (closed) keeps block b on its own transformer
+New Line.SW1H bus1=L1b bus2=L1 switch=yes
+New Line.SW2H bus1=L2b bus2=L2 switch=yes
+New Line.SW3H bus1=L3b bus2=L3 switch=yes
+New Line.SW4H bus1=L4b bus2=L4 switch=yes
+New Line.SW5H bus1=L5b bus2=L5 switch=yes
+New Line.SW6H bus1=L6b bus2=L6 switch=yes
+
+! LV switches: ALT (normally open) moves block b to a neighbour (T3 and T6 cross feeders)
+New Line.SW1A bus1=L1b bus2=L2 switch=yes
+New Line.SW2A bus1=L2b bus2=L3 switch=yes
+New Line.SW3A bus1=L3b bus2=L6 switch=yes
+New Line.SW4A bus1=L4b bus2=L5 switch=yes
+New Line.SW5A bus1=L5b bus2=L6 switch=yes
+New Line.SW6A bus1=L6b bus2=L3 switch=yes
+Open Line.SW1A term=1
+Open Line.SW2A term=1
+Open Line.SW3A term=1
+Open Line.SW4A term=1
+Open Line.SW5A term=1
+Open Line.SW6A term=1
+
+Set voltagebases=[11, 0.415]
+Calcvoltagebases
