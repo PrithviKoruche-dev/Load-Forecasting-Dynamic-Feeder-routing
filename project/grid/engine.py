@@ -235,3 +235,13 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = THRESHOLD) -> dict:
     return {"status": "no_safe_option", "action": [], "best_partial": actions,
             "before": _pack(before), "after": _pack(current), "log": log,
             "overloaded": overloaded, "compute_s": dt}
+
+
+def evaluate_state(loads_kw: dict, moves: list):
+    """Metrics for a given load set and given active LV moves (no optimisation). None if no convergence."""
+    load_network()
+    set_loads(loads_kw)
+    apply_moves(moves)
+    if not solve():
+        return None
+    return _pack(full_metrics())

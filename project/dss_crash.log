@@ -1,0 +1,1184 @@
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
+Windows fatal exception: code 0xe0465043
+
+Current thread 0x00007378 [dss_0] (most recent call first):
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 1057 in create_module
+  File "<frozen importlib._bootstrap>", line 816 in module_from_spec
+  File "<frozen importlib._bootstrap>", line 924 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\dss_python_backend\__init__.py", line 12 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\utils.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap>", line 1434 in _handle_fromlist
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\opendssdirect\__init__.py", line 13 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\grid\engine.py", line 3 in <module>
+  File "<frozen importlib._bootstrap>", line 491 in _call_with_frames_removed
+  File "<frozen importlib._bootstrap_external>", line 763 in exec_module
+  File "<frozen importlib._bootstrap>", line 938 in _load_unlocked
+  File "<frozen importlib._bootstrap>", line 1342 in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 1371 in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1406 in _gcd_import
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\importlib\__init__.py", line 88 in import_module
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000043d0 [Thread-3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 373 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 670 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1383 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner_utils\script_run_context.py", line 440 in _run_with_thread_state
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000058d4 [ScriptRunner.scriptThread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\_base.py", line 449 in result
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 28 in dss_worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 846 in _handle_cache_miss
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 784 in _get_or_create_cached_value
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\caching\cache_utils.py", line 728 in __call__
+  File "C:\Users\prith\OneDrive\Desktop\Final Year Project\Load Forecasting & Dynamic Feeder routing\project\app\app.py", line 32 in <module>
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 924 in code_to_exec
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 136 in exec_func_with_error_handling
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 949 in _run_script
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 436 in _run_script_thread
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003e28 [Thread-2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 326 in read_directory_changes
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\winapi.py", line 380 in read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 67 in _read_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\read_directory_changes.py", line 70 in queue_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 158 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006c08 [Thread-1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 379 in dispatch_events
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\watchdog\observers\api.py", line 213 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x000068d8 [AnyIO worker thread] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 369 in wait
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\queue.py", line 199 in get
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\anyio\_backends\_asyncio.py", line 1089 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00003b70 [ThreadPoolExecutor-0_3] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00005784 [ThreadPoolExecutor-0_2] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00004c28 [ThreadPoolExecutor-0_1] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00001ae0 [ThreadPoolExecutor-0_0] (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\watcher\polling_path_watcher.py", line 90 in task
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1024 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1082 in _bootstrap_inner
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\threading.py", line 1044 in _bootstrap
+
+Thread 0x00006110 (most recent call first):
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 778 in _poll
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\windows_events.py", line 446 in select
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 2024 in _run_once
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 678 in run_forever
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\base_events.py", line 707 in run_until_complete
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 128 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\asyncio\runners.py", line 205 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 160 in _run_server_loop
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\bootstrap.py", line 541 in run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 436 in _main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\web\cli.py", line 358 in main_run
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 910 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1415 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 2032 in invoke
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1552 in main
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\click\core.py", line 1631 in __call__
+  File "C:\Users\prith\anaconda3\envs\feeder_new\Lib\site-packages\streamlit\__main__.py", line 20 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 203 in _run_module_as_main
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>
