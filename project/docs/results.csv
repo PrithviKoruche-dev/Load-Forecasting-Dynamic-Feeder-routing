@@ -1,0 +1,6 @@
+scenario,hours,overload_hours,transformer_hours_over,rerouted,no_safe_option,resolved_%,mean_peak_before_%,mean_peak_after_% (rerouted),mean_moves,mean_time_s,max_time_s
+S1 Normal day,1073,0,0,0,0,,,,,0.007,0.023
+S2 Heatwave (T1-T3 x1.6),1073,5,5,5,0,100.0,87.4,74.5,1.0,0.006,0.017
+"S3 EV surge (T4 +200 kW, 18-22 h)",1073,23,22,23,0,100.0,87.3,69.5,1.0,0.005,0.013
+S4 Severe stress (all x2.5),1073,431,974,151,280,35.0,105.5,79.7,1.5,0.007,0.019
+S5 Edge case (T3 x4),1073,882,879,388,494,44.0,118.0,75.4,1.0,0.009,0.018
