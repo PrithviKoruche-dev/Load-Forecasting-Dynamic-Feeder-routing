@@ -9,6 +9,21 @@ limits:
 
 rerouting:
   min_improvement_pct: 0.05             # greedy search stops when the best move improves the peak by less than this
+  use_mv_transfers: false               # also consider the MV transfers in grid.yaml (off for the published benchmark)
+  tie_tolerance_pct: 0.001              # moves whose peaks differ by less than this count as equal; lower losses wins
+
+# Five risk classes (gap-analysis item F5). Forecast-based risk is kept separate from measured risk.
+#   normal < elevated < approaching < predicted_overload < actual_overload
+risk:
+  elevated_from_pct: 70                 # loading at or above this is "elevated"
+  approaching_margin_pct: 5             # within this many points below the threshold is "approaching"
+  voltage_margin_pu: 0.01               # a bus within this of a voltage limit gets an "approaching" alert
+  line_approaching_pct: 90              # a line at or above this % of its rating gets an "approaching" alert
+
+decisions:
+  default_mode: recommend               # monitor | recommend | auto
+  confidence_high: 0.90                 # probability that every transformer stays under the threshold
+  confidence_medium: 0.60
 
 dashboard:
   threshold_slider: {min: 70, max: 100} # operator-adjustable overload threshold range

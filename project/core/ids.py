@@ -60,7 +60,7 @@ def registry():
         rows.append({"asset_id": tx["id"], "kind": "transformer", "name": name,
                      "parent_id": g["feeders"][tx["feeder"]]["id"], "rating_kva": tx["rating_kva"]})
     owner = {}                                          # LV switch -> transformer whose block b it carries
-    for tx, m in g.get("moves", {}).items():
+    for tx, m in config.move_options(g):
         owner[m["home"]] = owner[m["alt"]] = g["transformers"][tx]["id"]
     for name, sw in g["switches"].items():
         rows.append({"asset_id": sw["id"], "kind": "switch", "name": name, "parent_id": owner.get(name),

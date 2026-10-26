@@ -6,6 +6,10 @@
 #
 # IDs follow the research specification: SUB-001, FD-001, DT-001, SW-001 (meters: MTR-00001).
 # The short names (T1, SW1H, ...) are the names used inside network.dss and on the dashboard.
+#
+# Note: in network.dss, Line.A2, Line.B2 and TIE1 are declared with switch=yes AFTER length=..., and
+# OpenDSS then turns them into 0.001 km switches. So each feeder is 2 km of cable (A1 + A3, B1 + B3),
+# and A2 / B2 act as sectionalising switches, which is what the MV transfers below use.
 
 network_file: grid/network.dss          # relative to the project/ folder
 
@@ -14,24 +18,31 @@ substation:
   id: SUB-001
   kv: 11
 
+# head_line: the line leaving the substation; feeder power and current are measured on it.
 feeders:
-  A: {id: FD-001, transformers: [T1, T2, T3]}
-  B: {id: FD-002, transformers: [T4, T5, T6]}
+  A: {id: FD-001, head_line: A1, transformers: [T1, T2, T3]}
+  B: {id: FD-002, head_line: B1, transformers: [T4, T5, T6]}
+
+# Power factor per consumer category; each transformer's loads use its category's value.
+# (Phase 7 adds commercial, industrial and mixed-use categories.)
+load_categories:
+  residential: {power_factor: 0.95}
 
 # mv_bus: 11 kV bus the transformer hangs from. fixed_load / movable_load: the two OpenDSS loads
 # on its LV side (block a stays, block b can be switched to a neighbour).
 transformers:
-  T1: {id: DT-001, feeder: A, mv_bus: A1, rating_kva: 500, fixed_load: LD1a, movable_load: LD1b}
-  T2: {id: DT-002, feeder: A, mv_bus: A2, rating_kva: 500, fixed_load: LD2a, movable_load: LD2b}
-  T3: {id: DT-003, feeder: A, mv_bus: A3, rating_kva: 500, fixed_load: LD3a, movable_load: LD3b}
-  T4: {id: DT-004, feeder: B, mv_bus: B1, rating_kva: 500, fixed_load: LD4a, movable_load: LD4b}
-  T5: {id: DT-005, feeder: B, mv_bus: B2, rating_kva: 500, fixed_load: LD5a, movable_load: LD5b}
-  T6: {id: DT-006, feeder: B, mv_bus: B3, rating_kva: 500, fixed_load: LD6a, movable_load: LD6b}
+  T1: {id: DT-001, feeder: A, mv_bus: A1, rating_kva: 500, category: residential, fixed_load: LD1a, movable_load: LD1b}
+  T2: {id: DT-002, feeder: A, mv_bus: A2, rating_kva: 500, category: residential, fixed_load: LD2a, movable_load: LD2b}
+  T3: {id: DT-003, feeder: A, mv_bus: A3, rating_kva: 500, category: residential, fixed_load: LD3a, movable_load: LD3b}
+  T4: {id: DT-004, feeder: B, mv_bus: B1, rating_kva: 500, category: residential, fixed_load: LD4a, movable_load: LD4b}
+  T5: {id: DT-005, feeder: B, mv_bus: B2, rating_kva: 500, category: residential, fixed_load: LD5a, movable_load: LD5b}
+  T6: {id: DT-006, feeder: B, mv_bus: B3, rating_kva: 500, category: residential, fixed_load: LD6a, movable_load: LD6b}
 
 load_split:
   movable_fraction: 0.20                # share of each transformer's load in block b
 
-# kind: lv_home (keeps block b on its own transformer), lv_alt (moves it to a neighbour), mv_tie.
+# kind: lv_home (keeps block b on its own transformer), lv_alt (moves it to a neighbour),
+#       mv_tie (normally open link between feeders), mv_sectionaliser (normally closed, splits a feeder).
 # normal: the switch position in the normal (radial) configuration.
 switches:
   SW1H: {id: SW-001, kind: lv_home, normal: closed}
@@ -47,9 +58,12 @@ switches:
   SW5A: {id: SW-011, kind: lv_alt, normal: open}
   SW6A: {id: SW-012, kind: lv_alt, normal: open}
   TIE1: {id: SW-013, kind: mv_tie, normal: open}
+  A2: {id: SW-014, kind: mv_sectionaliser, normal: closed}
+  B2: {id: SW-015, kind: mv_sectionaliser, normal: closed}
 
 # Each transformer's block b can move to `to` by opening `home` and then closing `alt`
 # (break-before-make, so the network stays radial). T3 <-> T6 cross between the two feeders.
+# A transformer may list several options as a YAML list; at most one of them is used at a time.
 moves:
   T1: {home: SW1H, alt: SW1A, to: T2}
   T2: {home: SW2H, alt: SW2A, to: T3}
@@ -57,3 +71,11 @@ moves:
   T4: {home: SW4H, alt: SW4A, to: T5}
   T5: {home: SW5H, alt: SW5A, to: T6}
   T6: {home: SW6H, alt: SW6A, to: T3}
+
+# MV transfers: move the far section of one feeder onto the other by opening a sectionaliser and then
+# closing the tie (break-before-make). They change which feeder carries a transformer, not the
+# transformer's own loading, so they help with feeder current and voltage problems, not transformer
+# overloads. Used only when operations.yaml rerouting.use_mv_transfers is true.
+mv_transfers:
+  MV1: {open: A2, close: TIE1, description: "feed A2-A3 (T2, T3) from feeder B"}
+  MV2: {open: B2, close: TIE1, description: "feed B2-B3 (T5, T6) from feeder A"}

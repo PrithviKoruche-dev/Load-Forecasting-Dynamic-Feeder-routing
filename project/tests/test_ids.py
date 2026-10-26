@@ -15,7 +15,7 @@ def reg():
 
 
 def test_registry_covers_every_asset(reg):
-    assert reg["kind"].value_counts().to_dict() == {"switch": 13, "transformer": 6, "feeder": 2, "substation": 1}
+    assert reg["kind"].value_counts().to_dict() == {"switch": 15, "transformer": 6, "feeder": 2, "substation": 1}
 
 
 def test_ids_are_unique_and_well_formed(reg):

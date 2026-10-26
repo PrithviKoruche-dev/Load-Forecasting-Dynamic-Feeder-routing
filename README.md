@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **Final Year Engineering Capstone Project**  
-> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) feeder reconfiguration**. (The network also models a normally open medium-voltage tie, `TIE1`; the rerouting engine does not switch it yet.)
+> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) load transfers**, with optional **medium-voltage (MV) feeder transfers** over the normally open tie `TIE1`. Every switching proposal is checked by AC power flow, explained, and applied according to an operating mode (monitor, recommend-and-approve, or automatic).
 
 ---
 
@@ -61,14 +61,18 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
 - **🔄 Fast Greedy Rerouting Algorithm:**
   - Multi-round heuristic search for single-switch load transfers with automatic pairwise fallback.
   - Sub-second deterministic decision-making: average execution time of **5–9 ms** (maximum $<25\text{ ms}$).
-  - Thermal and voltage safety checks on every candidate move; radial by construction (each move opens the block's home switch before closing its alternate, so no loop can form).
-  - Failsafe handling: returns `no_safe_option` when grid capacity is mathematically exhausted, avoiding hazardous or unfeasible operations.
+  - Thermal and voltage safety checks on every candidate move, on every bus including the 0.415 kV customer side, and a NetworkX radiality check (no loops, every load supplied) before each power flow.
+  - Every candidate is recorded with its outcome and the reason it was rejected; lower electrical losses break ties between equally good moves.
+  - Failsafe handling: returns `no_safe_option` when grid capacity is exhausted, with a plain-language **binding constraint** (e.g. "T4: even with its block b moved to T5 it would be at 114.2%").
+  - Optional MV feeder transfers (open sectionaliser `A2`/`B2`, close `TIE1`) for feeder-cable and voltage problems; voltage and line violations trigger a search even when no transformer is overloaded.
 
 - **📊 Interactive Streamlit Operator Dashboard:**
-  - Live interactive single-line network diagram powered by Plotly with real-time status color coding (green/amber/red).
+  - Live interactive single-line network diagram powered by Plotly, transformers coloured by risk class, open and closed switches drawn as they are.
   - Time-scrubbing replay slider with automatic "Jump to Peak Hour" capability.
   - Automated 24-hour day-ahead overload scanning matrix with severity tagging (`CRITICAL` vs `WARNING`).
-  - One-click automated dispatch, manual switch overrides, and side-by-side before/after loading analytics.
+  - Five risk classes (normal, elevated, approaching, predicted overload, actual overload), with forecast risk shown separately from measured risk.
+  - Three operating modes: monitor-only, recommend (operator approves), automatic; emergency stop, rollback and an action log.
+  - Structured recommendations: ID, numbered switching plan with switch IDs, before/after, losses, constraint checks and a confidence level.
   - Thread-isolated worker thread architecture preventing C-extension race conditions.
 
 - **🔬 Comprehensive Scenario Verification:**
@@ -117,7 +121,7 @@ flowchart TD
 
 ## 🔌 Distribution Network & Switching Topology
 
-The electrical network represents an urban 11 kV / 0.415 kV distribution system with two radial feeders originating from a central 33/11 kV substation (`SUB`):
+The electrical network represents an urban 11 kV / 0.415 kV distribution system with two radial feeders originating from a central 33/11 kV substation (`SUB`). In `network.dss`, `Line.A2`, `Line.B2` and `TIE1` are declared with `switch=yes`, which OpenDSS turns into 0.001 km switches: each feeder is 2 km of cable (`A1`+`A3`, `B1`+`B3`), and `A2`/`B2` act as sectionalising switches (asset IDs `SW-014`, `SW-015`) used by the MV transfers.
 
 ```
        +------------------- 11 kV Substation (SUB) -------------------+
@@ -218,11 +222,13 @@ Subject to:
 5. **Radiality & Safety:** Break-before-make switching without closed loops or backfeeding.
 
 ### Algorithm Flow
-1. **Evaluate Baseline:** Set forecasted/active loads. Solve AC power flow. If all transformers $\le 85\%$ threshold, return `status: no_action`.
-2. **Identify Bottlenecks:** Isolate overloaded transformers.
-3. **Round 1 (Greedy Search):** Test each admissible single move $t \in \text{free}$. Simulate in OpenDSS, verify voltage and thermal bounds. Select move yielding the largest reduction in peak loading.
-4. **Round 2 (Pairwise Fallback):** If no single move achieves the $85\%$ target or improves the objective by $\ge 0.05\%$, test all valid switch pairs $(a, b)$.
-5. **Convergence or Reversion:** If maximum loading $\le 85\%$, apply switches and return `status: rerouted`. If the grid cannot physically accommodate the overload safely, revert all switches to default and return `status: no_safe_option` along with the best partial configuration.
+1. **Evaluate Baseline:** Set forecasted/active loads. Solve AC power flow. If all transformers are at or below the 85% threshold and no voltage or line limit is violated, return `status: no_action`.
+2. **Identify Bottlenecks:** Isolate overloaded transformers and any voltage/line violations.
+3. **Greedy Round (single actions):** Test each admissible action (LV block moves; MV transfers when enabled). Each candidate is first checked for radiality, then solved in OpenDSS and checked against every limit. Select the safe candidate with the lowest peak loading; within 0.001 points, lower losses wins.
+4. **Pairwise Fallback:** If no single action improves the peak by at least 0.05 points (or removes the voltage/line violation), test all pairs of actions.
+5. **Convergence or Reversion:** If the peak is at or below the threshold and no limit is violated, return `status: rerouted` with the target configuration and an ordered switching plan. Otherwise restore the original switches and return `status: no_safe_option` with the best partial configuration and the binding constraint.
+
+Every evaluated candidate is returned with its status (`selected`, `feasible`, `rejected`) and reason (e.g. "T6 would be at 103.5% (> 100% limit)"; "would still be at" when the problem existed before switching).
 
 ---
 
@@ -259,22 +265,18 @@ Minimum voltage is the lowest phase voltage on any bus, including the 0.415 kV c
 
 The project includes an operator-grade web console built with **Streamlit** and **Plotly**:
 
-1. **Top KPI Ribbon:** Displays current overloaded transformer count, system-wide peak loading percentage, minimum bus voltage (pu), and model forecast nRMSE.
-2. **Interactive Topology Visualizer:**
-   - Color-coded transformers: **Green** ($<70\%$), **Amber** ($70\%\dots85\%$), **Red** ($>85\%$).
-   - Dotted grey lines indicate normally open tie switches.
-   - Highlighting orange paths indicate closed tie connections with transferred load blocks.
-3. **Load Forecasting Horizon Plot:**
-   - 72-hour sliding window with actual demand, forecasted demand, and scenario multipliers.
-   - Dynamic threshold line indicating rated thermal limit.
-4. **Day-Ahead Overload Scanning Matrix:**
-   - Proactively evaluates all 24 hours of the current day.
-   - Generates an actionable table highlighting which transformer will overload first, number of hours at risk, and projected peak severity.
-5. **Operator Control Deck:**
-   - Primary **"Reroute"** trigger executing automated dispatch.
-   - **"Reset Switches"** button restoring baseline topology.
-   - Manual switch override multi-select for authorized dispatchers.
-   - Before/after comparative bar chart and execution audit trail log.
+1. **Top KPI Ribbon:** overloaded transformer count, peak loading, lowest bus voltage (all buses, including the customer side), network losses, and the forecast nRMSE.
+2. **Interactive Topology Visualizer:** transformers coloured by risk class (green normal, amber elevated, orange approaching, red predicted overload, dark red measured overload); dotted grey for open switches; blue for a closed tie, a moved block or a transferred feeder section; dashed MV segments when a sectionaliser is open.
+3. **Load Forecasting Horizon Plot:** 72-hour window with actual demand, forecast, the scenario-adjusted forecast and the overload line.
+4. **Risk Now:** for every transformer, the forecast and the measured loading with their risk classes side by side, plus voltage and line alerts.
+5. **Day-Ahead Overload Scanning Matrix:** which transformer overloads first, for how many hours, and how badly (`CRITICAL` above 100%, `WARNING` above the threshold).
+6. **Decision Support** (depends on the operating mode chosen in the sidebar):
+   - *Monitor only:* risks and alerts, no switching proposed.
+   - *Recommend:* **Get recommendation** produces a recommendation (ID, summary, numbered switching plan with switch IDs, before/after loading, losses, lowest voltage, confidence, constraint checks, every candidate and why it was rejected). **Approve** applies it; **Reject** discards it. A recommendation computed for another hour or scenario cannot be approved.
+   - *Automatic:* every change of time or settings is assessed and safe reconfigurations (or a return to normal) are applied by themselves.
+   - **EMERGENCY STOP** halts automation at once (mode drops to monitor-only, pending proposals are cancelled) and leaves the switches as they are; **Roll back last change** and **Reset to normal configuration** remain available to the operator.
+7. **Manual switching** of any LV move (and MV transfer when enabled); unsafe configurations (loops, unsupplied loads) are refused.
+8. **Action log** of every recommendation, approval, rejection, switching operation, rollback and emergency stop.
 
 ---
 
@@ -302,7 +304,7 @@ Assets carry IDs in the research specification's scheme, while the short names s
 | Substation | `SUB-001` | `SUB` |
 | Feeders | `FD-001`, `FD-002` | A, B |
 | Transformers | `DT-001` … `DT-006` | `T1` → `DT-001` |
-| Switches | `SW-001` … `SW-013` | `SW1H` → `SW-001`, `TIE1` → `SW-013` |
+| Switches | `SW-001` … `SW-015` | `SW1H` → `SW-001`, `TIE1` → `SW-013`, `A2` → `SW-014` |
 | Meters | `MTR-00001` … | one per household kept by `prepare_data.py` |
 
 `core/ids.py` provides the registry and conversions. The forecast files carry an `asset_id` column, and `prepare_data.py` writes `data/processed/meter_registry.csv`, linking every household's meter ID to its transformer.
@@ -336,7 +338,9 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── app.py                 # Main operator dashboard entry point
     │   └── plots.py               # Plotly network topology & load curve renderers
     ├── grid/                      # Power systems simulation & reconfiguration
-    │   ├── engine.py              # Heuristic greedy rerouting engine & OpenDSS API
+    │   ├── engine.py              # GridEngine: OpenDSS power flow, switching actions, rerouting search
+    │   ├── risk.py                # Five risk classes, voltage/line alerts, recommendation confidence
+    │   ├── decisions.py           # Recommendations, operating modes, approval, rollback, emergency stop
     │   ├── network.dss            # OpenDSS circuit definition (11 kV dual-feeder)
     │   ├── scenarios.py           # Quick check of the engine on a flat load
     │   ├── test_day1.py           # Basic power flow & manual switch test script
@@ -365,7 +369,10 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_config.py         # Config validation; grid.yaml agrees with network.dss
     │   ├── test_ids.py            # Asset ID scheme and registry
     │   ├── test_scenarios.py      # Scenario rules; dashboard defaults equal the benchmark
-    │   ├── test_dashboard.py      # The dashboard run headless: start-up, scenarios, Reroute
+    │   ├── test_engine_v2.py      # Candidates, reasons, binding constraints, losses, P/Q/S, feeders, MV transfers
+    │   ├── test_risk.py           # Risk classes, alerts, confidence
+    │   ├── test_decisions.py      # Modes, approval, stale proposals, rollback, emergency stop
+    │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   └── test_artifacts.py      # Forecast files, scale factors, model and config agree
     ├── scripts/                   # Helper scripts, not part of the pipeline
@@ -480,26 +487,38 @@ The ML forecasting pipeline exposes a simple CSV interface utilized by the grid 
 
 ### 2. Grid Engine API (`grid/engine.py`)
 ```python
-def evaluate_and_reroute(loads_kw: dict, threshold: float = 85.0) -> dict:
+def evaluate_and_reroute(loads_kw: dict, threshold: float = 85.0, use_mv: bool = None) -> dict:
     """
-    Evaluates transformer loadings and computes optimal tie-switch actions.
+    Evaluates transformer loadings and computes the best safe switching configuration.
 
     Parameters:
         loads_kw (dict): Active power per transformer, e.g. {"T1": 320.0, ..., "T6": 290.0}
-        threshold (float): Loading % trigger limit (default: 85.0%)
+        threshold (float): Loading % trigger limit (default from config/operations.yaml)
+        use_mv (bool): also consider MV feeder transfers (default from config)
 
     Returns:
         dict: {
             "status": "rerouted" | "no_action" | "no_safe_option",
-            "action": list[str],          # e.g. ["move T1 block b -> T2"]
-            "before": dict,               # max_loading, min_voltage_pu, max_line_loading
-            "after": dict,                # post-switching metrics
+            "action": list[str],          # e.g. ["move T4 block b -> T5"]
+            "target": list[str],          # action keys of the target configuration, e.g. ["T4>T5"]
+            "plan": list[dict],           # ordered switch operations: step, switch, switch_id, operation, action
+            "before": dict,               # metrics in the normal configuration (see below)
+            "after": dict,                # metrics in the target (or best partial) configuration
+            "candidates": list[dict],     # every option evaluated: id, round, actions, status, reason,
+                                          #   max_loading, min_voltage_pu, max_line_loading, losses_kw
+            "binding": list[str],         # why no safe option exists (empty otherwise)
+            "violations_before": list,    # hard-limit violations in the starting state
+            "best_partial": list[str],    # no_safe_option only
             "log": list[str],             # step-by-step solver audit trail
-            "overloaded": list[str],      # list of overloaded transformers
+            "overloaded": list[str],      # transformers above the threshold
             "compute_s": float            # algorithm execution time in seconds
         }
+    Metrics: max_loading, loading_by_tx, min_voltage_pu, min_voltage_bus, max_voltage_pu, max_line_loading,
+    losses_kw, and (for before/after) transformers {kw, kvar, kva, loading_pct}, feeders {kw, kvar, kva,
+    current_a, loading_pct, min_voltage_pu, transformers}, bus_voltages_pu, line_loading_pct.
     """
 ```
+`GridEngine(grid_cfg, ops_cfg)` builds an engine for any configuration (the module-level functions use one built from `config/`). `grid/decisions.py` wraps it in a `Controller` (modes, approve/reject, rollback, emergency stop, history).
 
 ---
 

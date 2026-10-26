@@ -85,6 +85,16 @@ def _id(value, kind, file, where):
           f"{where}: '{value}' is not a valid {kind} ID (expected like {example})")
 
 
+def move_options(g):
+    """[(transformer, {home, alt, to}), ...] from grid.yaml 'moves', where each entry may be one option
+    (a mapping) or several (a list). Order follows the file."""
+    out = []
+    for tx, m in g.get("moves", {}).items():
+        for opt in (m if isinstance(m, list) else [m]):
+            out.append((tx, opt))
+    return out
+
+
 # ------------------------------------------------------------------ files
 @lru_cache(maxsize=None)
 def grid():
@@ -96,8 +106,12 @@ def grid():
     txs = _get(g, f, "transformers")
     _need(isinstance(txs, dict) and txs, f, "'transformers' must be a non-empty mapping")
     feeders = _get(g, f, "feeders")
+    categories = _get(g, f, "load_categories")
+    for cat, c in categories.items():
+        _number(c, f, "power_factor", low=0, high=1, low_open=True)
     for name, fd in feeders.items():
         _id(fd.get("id"), "feeder", f, f"feeder {name}")
+        _need(isinstance(fd.get("head_line"), str), f, f"feeder {name}: 'head_line' is required")
         for t in fd.get("transformers", []):
             _need(t in txs, f, f"feeder {name} lists unknown transformer {t}")
     for t, tx in txs.items():
@@ -105,6 +119,7 @@ def grid():
         _need(tx.get("feeder") in feeders, f, f"transformer {t}: unknown feeder {tx.get('feeder')}")
         _need(t in feeders[tx["feeder"]]["transformers"], f, f"transformer {t} missing from feeder {tx['feeder']}")
         _number(tx, f, "rating_kva", low=0, low_open=True)
+        _need(tx.get("category") in categories, f, f"transformer {t}: unknown load category {tx.get('category')!r}")
         for k in ("mv_bus", "fixed_load", "movable_load"):
             _need(isinstance(tx.get(k), str), f, f"transformer {t}: '{k}' is required")
 
@@ -114,14 +129,26 @@ def grid():
     switches = _get(g, f, "switches")
     for s, sw in switches.items():
         _id(sw.get("id"), "switch", f, f"switch {s}")
-        _need(sw.get("kind") in ("lv_home", "lv_alt", "mv_tie"), f, f"switch {s}: unknown kind {sw.get('kind')}")
+        _need(sw.get("kind") in ("lv_home", "lv_alt", "mv_tie", "mv_sectionaliser"), f,
+              f"switch {s}: unknown kind {sw.get('kind')}")
         _need(sw.get("normal") in ("open", "closed"), f, f"switch {s}: normal must be open or closed")
 
-    for t, m in _get(g, f, "moves").items():
+    _get(g, f, "moves")
+    seen = set()
+    for t, m in move_options(g):
         _need(t in txs, f, f"move for unknown transformer {t}")
+        _need(isinstance(m, dict), f, f"move {t}: each option needs home, alt and to")
+        _need((t, m.get("to")) not in seen, f, f"move {t}: two options lead to {m.get('to')}")
+        seen.add((t, m.get("to")))
         _need(m.get("to") in txs and m["to"] != t, f, f"move {t}: 'to' must be another transformer")
         _need(switches.get(m.get("home"), {}).get("kind") == "lv_home", f, f"move {t}: home must be an lv_home switch")
         _need(switches.get(m.get("alt"), {}).get("kind") == "lv_alt", f, f"move {t}: alt must be an lv_alt switch")
+
+    for name, mv in (g.get("mv_transfers") or {}).items():
+        _need(switches.get(mv.get("open"), {}).get("kind") == "mv_sectionaliser", f,
+              f"mv_transfers {name}: 'open' must be an mv_sectionaliser switch")
+        _need(switches.get(mv.get("close"), {}).get("kind") == "mv_tie", f,
+              f"mv_transfers {name}: 'close' must be an mv_tie switch")
 
     all_ids = ([g["substation"]["id"]] + [fd["id"] for fd in feeders.values()]
                + [tx["id"] for tx in txs.values()] + [sw["id"] for sw in switches.values()])
@@ -142,6 +169,18 @@ def operations():
     _need(vmin < vmax, f, "voltage_min_pu must be below voltage_max_pu")
     _number(o, f, "limits", "line_limit_pct", low=0, low_open=True)
     _number(o, f, "rerouting", "min_improvement_pct", low=0)
+    _number(o, f, "rerouting", "tie_tolerance_pct", low=0)
+    _need(isinstance(_get(o, f, "rerouting", "use_mv_transfers"), bool), f, "rerouting.use_mv_transfers must be true or false")
+    elev = _number(o, f, "risk", "elevated_from_pct", low=0)
+    _need(elev < thr, f, "risk.elevated_from_pct must be below the overload threshold")
+    _number(o, f, "risk", "approaching_margin_pct", low=0)
+    _number(o, f, "risk", "voltage_margin_pu", low=0, high=0.1)
+    _number(o, f, "risk", "line_approaching_pct", low=0, high=_get(o, f, "limits", "line_limit_pct"))
+    _need(_get(o, f, "decisions", "default_mode") in ("monitor", "recommend", "auto"), f,
+          "decisions.default_mode must be monitor, recommend or auto")
+    med = _number(o, f, "decisions", "confidence_medium", low=0, high=1)
+    high = _number(o, f, "decisions", "confidence_high", low=0, high=1)
+    _need(med < high, f, "decisions.confidence_medium must be below confidence_high")
     lo = _number(o, f, "dashboard", "threshold_slider", "min", low=0)
     hi = _number(o, f, "dashboard", "threshold_slider", "max", low=0)
     _need(lo <= thr <= hi, f, "overload_threshold_pct must lie inside dashboard.threshold_slider")

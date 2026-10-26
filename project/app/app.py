@@ -1,11 +1,12 @@
-"""Streamlit operator dashboard: forecast -> overload alert -> OpenDSS -> reroute.
+"""Streamlit operator dashboard: forecast -> risk -> OpenDSS -> recommendation -> operator decision.
 
-Scenario presets and slider ranges come from config/scenarios.yaml, limits and colour bands from
-config/operations.yaml. Operator actions are logged to logs/dashboard.log.
+Scenario presets and slider ranges come from config/scenarios.yaml, limits, risk bands and the default
+operating mode from config/operations.yaml. Decisions go through grid/decisions.py (operating modes,
+approval, rollback, emergency stop); every event is shown in the action log and written to
+logs/dashboard.log.
 """
 import faulthandler
 import importlib
-import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -55,6 +56,12 @@ def dss(fn, *args):
     return EXEC.submit(fn, *args).result()
 
 
+
+
+from decisions import MODES, Controller, DecisionError  # noqa: E402  (no OpenDSS import inside)
+from risk import LABELS as RISK_LABELS, RiskModel  # noqa: E402
+
+
 def _kw_calc(threshold):
     e.load_network()
     e.set_loads({t: 300.0 for t in e.TX})
@@ -65,6 +72,7 @@ def _kw_calc(threshold):
 PRESETS = {p.label: p for p in scenarios.dashboard_presets()}
 SCENARIOS = list(PRESETS)
 _OPS = config.operations()
+RISK = RiskModel()
 PARAM_KEYS = []                                  # session keys of every scenario control, in sidebar order
 DEFAULTS = {"scenario": SCENARIOS[0]}
 for _p in PRESETS.values():
@@ -74,18 +82,26 @@ for _p in PRESETS.values():
     if _p.choose_transformer:
         PARAM_KEYS.append(_p.choose_transformer["key"])
         DEFAULTS[_p.choose_transformer["key"]] = _p.choose_transformer["default"]
-DEFAULTS.update({"thr": int(_OPS["limits"]["overload_threshold_pct"]), "moves": []})
+DEFAULTS.update({"thr": int(_OPS["limits"]["overload_threshold_pct"]),
+                 "use_mv": bool(_OPS["rerouting"]["use_mv_transfers"])})
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
-st.session_state.setdefault("log", [])
-st.session_state.setdefault("last", None)
+if "ctl" not in st.session_state:
+    st.session_state["ctl"] = Controller(e._default)
+CTL = st.session_state["ctl"]
+st.session_state.setdefault("flash", None)
+st.session_state.setdefault("auto_key", None)
+# widgets that mirror controller state are refreshed from it on every run
+st.session_state["mode_widget"] = CTL.mode
+st.session_state["moves"] = list(CTL.active)
 
 
 # ------------------------------------------------------------------ data
 @st.cache_data
 def load_forecast():
     fc = pd.read_csv(ROOT / "data" / "forecast.csv", parse_dates=["timestamp"])
-    return fc, fc.pivot(index="timestamp", columns="transformer_id", values="predicted_kw")
+    return (fc, fc.pivot(index="timestamp", columns="transformer_id", values="predicted_kw"),
+            fc.pivot(index="timestamp", columns="transformer_id", values="actual_kw"))
 
 
 @st.cache_data
@@ -103,7 +119,7 @@ def kw_at_limit(threshold):
     return dss(_kw_calc, threshold)
 
 
-fc, pred = load_forecast()
+fc, pred, actual = load_forecast()
 
 
 def params():
@@ -126,9 +142,16 @@ def adjust(tx, ts, kw, p):
     return scenario_for(p).adjust(tx, ts, kw)
 
 
-def loads_at(ts, p):
+def loads_at(ts, p, frame=None):
     ts = pd.Timestamp(ts)
-    return {tx: float(adjust(tx, ts, pred.loc[ts, tx], p)) for tx in e.TX}
+    frame = pred if frame is None else frame
+    return {tx: float(adjust(tx, ts, frame.loc[ts, tx], p)) for tx in e.TX}
+
+
+def context():
+    """Everything besides the time that the loads and limits depend on (for stale-approval checks)."""
+    s = st.session_state
+    return f"{s['scenario']} {dict(params()[1])} threshold={s['thr']} mv={s['use_mv']}"
 
 
 @st.cache_data
@@ -181,6 +204,24 @@ tmin, tmax = pred.index.min().to_pydatetime(), pred.index.max().to_pydatetime()
 st.session_state.setdefault("t", peak_time(params()))
 
 
+def _now_label():
+    return f"{pd.Timestamp(st.session_state['t']):%Y-%m-%d %H:%M}"
+
+
+def _guard(fn, *args, ok=None):
+    """Run a controller operation; show its refusal (DecisionError) as a message instead of crashing."""
+    try:
+        out = fn(*args)
+        if ok:
+            st.session_state["flash"] = ("success", ok)
+        if CTL.history:
+            log.info(CTL.history[-1]["message"])
+        return out
+    except DecisionError as ex:
+        st.session_state["flash"] = ("error", str(ex))
+        log.warning("refused: %s", ex)
+
+
 def shift(hours):
     st.session_state["t"] = min(max(st.session_state["t"] + timedelta(hours=hours), tmin), tmax)
 
@@ -189,30 +230,45 @@ def jump_peak():
     st.session_state["t"] = peak_time(params())
 
 
-def reset_switches():
-    st.session_state["moves"] = []
-    st.session_state["last"] = None
-    st.session_state["log"].append("Switches reset to normal configuration.")
-    log.info("switches reset to normal configuration")
+def on_mode():
+    _guard(CTL.set_mode, st.session_state["mode_widget"], _now_label())
 
 
-def do_reroute():
+def on_manual():
+    _guard(CTL.set_configuration, list(st.session_state["moves"]), _now_label(), "manual switching by operator")
+
+
+def do_recommend():
     s = st.session_state
-    t, p, thr = pd.Timestamp(s["t"]), params(), float(s["thr"])
-    res = dss(e.evaluate_and_reroute, loads_at(t, p), thr)
-    s["last"] = {"t": t, "res": res, "scenario": s["scenario"]}
-    stamp = f"{t:%d %b %H:%M} [{s['scenario']}]"
-    if res["status"] == "rerouted":
-        s["moves"] = re.findall(r"move (T\d+)", " ".join(res["action"]))
-        s["log"].append(f"{stamp} REROUTED: {'; '.join(res['action'])} | max loading "
-                        f"{res['before']['max_loading']}% -> {res['after']['max_loading']}% | {res['compute_s']} s")
-    elif res["status"] == "no_action":
-        s["moves"] = []
-        s["log"].append(f"{stamp} NO ACTION: all transformers below {thr:.0f}%.")
-    else:
-        s["log"].append(f"{stamp} CRITICAL: no safe reconfiguration. "
-                        f"Best partial: {', '.join(res.get('best_partial', [])) or 'none'}.")
-    log.info(s["log"][-1])
+    t = pd.Timestamp(s["t"])
+    rec = _guard(dss, CTL.recommend, loads_at(t, params()), _now_label(), context(), float(s["thr"]), s["use_mv"])
+    if rec is not None and rec.kind in ("no_action", "no_change"):
+        s["flash"] = ("success", rec.summary)
+
+
+def do_approve(rec_id):
+    _guard(CTL.approve, rec_id, _now_label(), context(), ok=f"{rec_id} applied.")
+
+
+def do_reject(rec_id):
+    _guard(CTL.reject, rec_id, "rejected from the dashboard")
+
+
+def do_rollback():
+    _guard(CTL.rollback, _now_label(), ok="Rolled back to the previous configuration.")
+
+
+def do_reset():
+    _guard(CTL.reset_to_normal, _now_label())
+
+
+def do_estop():
+    _guard(CTL.emergency_stop, _now_label())
+    st.session_state["flash"] = ("error", "EMERGENCY STOP: automation halted. Switches are left as they are.")
+
+
+def do_clear_estop():
+    _guard(CTL.clear_emergency_stop, _now_label(), ok="Emergency stop cleared. Choose an operating mode to resume.")
 
 
 # ------------------------------------------------------------------ sidebar
@@ -236,36 +292,66 @@ with st.sidebar:
     _thr = _OPS["dashboard"]["threshold_slider"]
     st.slider("Overload threshold (%)", _thr["min"], _thr["max"], key="thr")
     st.caption("Forecast = held-out test period. Scenarios scale the forecast to create overloads.")
+    st.header("Operation")
+    st.radio("Operating mode", list(MODES), format_func=MODES.get, key="mode_widget", on_change=on_mode,
+             disabled=CTL.estopped)
+    st.checkbox("Allow MV feeder transfers", key="use_mv",
+                help="Also consider opening a sectionaliser and closing the tie between feeders A and B.")
+    if CTL.estopped:
+        st.button("Clear emergency stop", on_click=do_clear_estop)
+    else:
+        st.button("EMERGENCY STOP", type="primary", on_click=do_estop,
+                  help="Halts automation at once: mode drops to monitor-only, pending proposals are cancelled. "
+                       "Switches are left as they are.")
+
+# ------------------------------------------------------------------ automatic mode
+t = pd.Timestamp(st.session_state["t"])
+p, thr = params(), float(st.session_state["thr"])
+loads = loads_at(t, p)
+if CTL.mode == "auto" and not CTL.estopped:
+    key = (_now_label(), context())
+    if st.session_state["auto_key"] != key:                 # assess once per time step / setting change
+        st.session_state["auto_key"] = key
+        _guard(dss, CTL.recommend, loads, _now_label(), context(), thr, st.session_state["use_mv"])
+moves = list(CTL.active)
+cur = evaluate(loads, moves)
+measured_loads = loads_at(t, p, actual) if not actual.loc[t].isna().any() else None
+measured = evaluate(measured_loads, moves) if measured_loads else None
 
 # ------------------------------------------------------------------ main
-t = pd.Timestamp(st.session_state["t"])
-p, thr, moves = params(), float(st.session_state["thr"]), list(st.session_state["moves"])
-loads = loads_at(t, p)
-cur = evaluate(loads, moves)
-
 st.title("AI-driven load forecasting and dynamic feeder rerouting")
 st.caption(f"Replay time: **{t:%a %d %b %Y, %H:%M}** | Scenario: **{st.session_state['scenario']}** | "
-           f"Active LV moves: **{', '.join(moves) if moves else 'none (normal configuration)'}**")
+           f"Mode: **{MODES[CTL.mode]}**{' | **EMERGENCY STOP**' if CTL.estopped else ''} | "
+           f"Configuration: **{', '.join(moves) if moves else 'normal'}**")
+flash = st.session_state["flash"]
+if flash:
+    getattr(st, flash[0])(flash[1])
+    st.session_state["flash"] = None
 if cur is None:
-    st.error("Power flow did not converge at this load level. Reduce the scenario multiplier.")
+    st.error("Power flow did not converge at this load level (or the configuration is not radial). "
+             "Reduce the scenario multiplier or reset the switches.")
+    st.button("Reset to normal configuration", on_click=do_reset)
     st.stop()
 
 loading = cur["loading_by_tx"]
+risk = RISK.transformers(loading, measured["loading_by_tx"] if measured else None, thr)
 n_over = sum(v > thr for v in loading.values())
 nrmse = forecast_nrmse()
-k1, k2, k3, k4 = st.columns(4)
+k1, k2, k3, k4, k5 = st.columns(5)
 k1.metric("Transformers overloaded", f"{n_over} of 6")
 k2.metric("Peak loading", f"{cur['max_loading']:.1f} %")
-k3.metric("Minimum voltage", f"{cur['min_voltage_pu']:.4f} pu")
-k4.metric("Forecast nRMSE (test)", f"{nrmse:.1f} %" if nrmse is not None else "n/a")
+k3.metric("Minimum voltage", f"{cur['min_voltage_pu']:.4f} pu", help=f"lowest bus: {cur.get('min_voltage_bus', '')}")
+k4.metric("Losses", f"{cur['losses_kw']:.1f} kW")
+k5.metric("Forecast nRMSE (test)", f"{nrmse:.1f} %" if nrmse is not None else "n/a")
 
 left, right = st.columns([1.1, 1])
 with left:
     st.subheader("Network")
-    st.plotly_chart(plots.topology_figure(loading, moves, thr))
-    _amber = _OPS["dashboard"]["amber_from_pct"]
-    st.caption(f"Green below {_amber}%, amber {_amber}% to threshold, red above threshold. Dotted grey: open tie switches. "
-               "Solid orange: LV tie closed, block b moved to a neighbour.")
+    st.plotly_chart(plots.topology_figure(loading, moves, thr, {t_: r["risk_class"] for t_, r in risk.items()},
+                                          e._default.switch_state(moves)))
+    st.caption("Transformer colour = risk class: green normal, amber elevated, orange approaching, red predicted "
+               "overload, dark red actual (measured) overload. Dotted grey: open switches. Blue: closed tie, "
+               "block b or feeder section moved.")
 with right:
     st.subheader("Load forecast")
     sel = st.selectbox("Transformer", e.TX, key="sel_tx")
@@ -279,6 +365,21 @@ with right:
 st.divider()
 a, b = st.columns(2)
 with a:
+    st.subheader("Risk now")
+    st.caption("Forecast = the 24 h-ahead forecast for this hour; measured = what the meters recorded. "
+               "Both under the current scenario and switch state.")
+    st.dataframe(pd.DataFrame([{"transformer": t_, "forecast %": r["forecast_pct"],
+                                "measured %": r["measured_pct"],
+                                "forecast risk": RISK_LABELS.get(r["forecast_class"], "n/a"),
+                                "measured risk": RISK_LABELS.get(r["measured_class"], "n/a"),
+                                "risk class": RISK_LABELS[r["risk_class"]]} for t_, r in risk.items()]),
+                 hide_index=True)
+    net_alerts = RISK.network_alerts(cur)
+    if net_alerts:
+        st.dataframe(pd.DataFrame([{"level": x["level"], "type": x["type"], "where": x["element"],
+                                    "detail": x["text"]} for x in net_alerts]), hide_index=True)
+    else:
+        st.caption("No voltage or line alerts.")
     st.subheader("Day-ahead overload alerts")
     st.caption(f"All 24 hours of {t:%d %b %Y}, under the current switch state.")
     alerts = day_scan(t.normalize(), p, tuple(moves), thr)
@@ -289,27 +390,62 @@ with a:
                                         "hours_over": "hours over", "peak_pct": "peak %"})
         st.dataframe(alerts[["severity", "transformer", "first overload", "hours over", "peak %"]],
                      hide_index=True)
-    st.subheader("Action log")
-    if st.session_state["log"]:
-        for line in reversed(st.session_state["log"][-8:]):
-            st.write("- " + line)
-    else:
-        st.caption("No actions yet.")
+
 with b:
-    st.subheader("Operator controls")
+    st.subheader("Decision support")
+    if CTL.estopped:
+        st.error("Emergency stop is active: no switching is proposed or applied. "
+                 "Roll back or reset manually if needed, then clear the stop.")
+    elif CTL.mode == "monitor":
+        st.info("Monitor-only mode: risks and alerts are shown; no switching is proposed.")
+    elif CTL.mode == "recommend":
+        st.button("Get recommendation", type="primary", on_click=do_recommend)
+    else:
+        st.info("Automatic mode: each time the replay time or settings change, the engine assesses the network "
+                "and applies a safe reconfiguration (or a return to normal) by itself.")
+    rec = CTL.last
+    if rec is not None and rec.kind != "no_action":
+        st.markdown(f"**{rec.rec_id}** for {rec.for_time} &nbsp;·&nbsp; `{rec.kind}` &nbsp;·&nbsp; status `{rec.status}`"
+                    + (f" &nbsp;·&nbsp; {rec.compute_s} s" if rec.compute_s is not None else ""))
+        {"no_safe_option": st.error, "no_change": st.success}.get(rec.kind, st.info)(rec.summary)
+        for line in rec.binding:
+            st.write("- " + line)
+        if rec.plan:
+            st.dataframe(pd.DataFrame(rec.plan)[["step", "switch", "switch_id", "operation", "action"]],
+                         hide_index=True)
+        if rec.before and rec.after and rec.kind != "no_safe_option":
+            st.plotly_chart(plots.before_after_chart(rec.before["loading_by_tx"], rec.after["loading_by_tx"], rec.threshold))
+            st.dataframe(pd.DataFrame([
+                {"": "peak loading %", "before": rec.before["max_loading"], "after": rec.after["max_loading"]},
+                {"": "lowest voltage pu", "before": rec.before["min_voltage_pu"], "after": rec.after["min_voltage_pu"]},
+                {"": "losses kW", "before": rec.losses_before_kw, "after": rec.losses_after_kw}]), hide_index=True)
+        if rec.confidence:
+            st.markdown(f"Confidence: **{rec.confidence['label']}** ({rec.confidence['probability']:.0%})",
+                        help=rec.confidence["basis"])
+        if rec.checks:
+            with st.expander("Constraint checks"):
+                st.dataframe(pd.DataFrame(rec.checks), hide_index=True)
+        if rec.status == "pending" and CTL.mode == "recommend" and not CTL.estopped:
+            c1, c2 = st.columns(2)
+            c1.button("Approve", type="primary", on_click=do_approve, args=(rec.rec_id,))
+            c2.button("Reject", on_click=do_reject, args=(rec.rec_id,))
+        if rec.candidates:
+            with st.expander(f"Candidates evaluated ({len(rec.candidates)})"):
+                st.dataframe(pd.DataFrame([{"id": c["id"], "round": c["round"], "status": c.get("status", ""),
+                                            "option": c["label"], "reason": c["reason"], "peak %": c["max_loading"],
+                                            "losses kW": c["losses_kw"]} for c in rec.candidates]), hide_index=True)
+
+    st.markdown("**Manual switching**")
+    options = [k for k, a_ in e.ACTIONS.items() if a_.kind == "lv" or st.session_state["use_mv"] or k in moves]
+    st.multiselect("Active switching actions", options, key="moves", on_change=on_manual,
+                   format_func=lambda k: e.ACTIONS[k].label)
     r1, r2 = st.columns(2)
-    r1.button("Reroute", type="primary", on_click=do_reroute)
-    r2.button("Reset switches", on_click=reset_switches)
-    st.multiselect("Manual LV moves (block b to neighbour)", e.TX, key="moves",
-                   format_func=lambda x: f"{x} -> {e.MOVES[x][2]}")
-    last = st.session_state["last"]
-    if last:
-        res = last["res"]
-        st.markdown(f"**Last reroute** ({last['t']:%d %b %H:%M}, {last['scenario']}): `{res['status']}`"
-                    + (f", {res['compute_s']} s" if "compute_s" in res else ""))
-        if res.get("before") and res.get("after"):
-            st.plotly_chart(plots.before_after_chart(res["before"]["loading_by_tx"],
-                                                     res["after"]["loading_by_tx"], thr))
-        with st.expander("Algorithm log"):
-            for line in res["log"]:
-                st.write("- " + line)
+    r1.button("Roll back last change", on_click=do_rollback, disabled=not CTL.can_rollback)
+    r2.button("Reset to normal configuration", on_click=do_reset, disabled=not moves)
+
+st.subheader("Action log")
+if CTL.history:
+    st.dataframe(pd.DataFrame([{"#": h["seq"], "sim time": h["sim_time"] or "", "event": h["type"],
+                                "details": h["message"]} for h in reversed(CTL.history[-15:])]), hide_index=True)
+else:
+    st.caption("No actions yet.")
