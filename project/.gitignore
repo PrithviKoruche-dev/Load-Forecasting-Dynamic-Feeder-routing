@@ -2,3 +2,8 @@ data/raw/
 data/processed/
 __pycache__/
 .venv/
+.pytest_cache/
+
+# Written by app/app.py if OpenDSS crashes the process (machine-specific, contains local paths)
+dss_crash.log
+*.log

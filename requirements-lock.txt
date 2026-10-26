@@ -1,0 +1,18 @@
+# Exact versions used to verify the committed results (Python 3.13, Linux).
+# Install with:  pip install -r requirements-lock.txt
+opendssdirect.py==0.9.4
+dss-python==0.15.7
+dss_python_backend==0.14.5
+numpy==2.5.4
+pandas==3.1.0
+pyarrow==26.0.0
+xgboost==3.4.1
+scikit-learn==1.9.1
+scipy==1.18.1
+networkx==3.7
+openpyxl==3.1.5
+streamlit==1.66.1
+plotly==7.1.0
+matplotlib==3.11.2
+tabulate==0.10.0
+pytest==9.1.1

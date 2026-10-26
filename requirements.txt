@@ -1,0 +1,25 @@
+# Runtime and test dependencies for the project.
+# Version ranges are the ones the code is known to work with.
+# For the exact versions that reproduced docs/results.csv and docs/metrics.csv,
+# install requirements-lock.txt instead.
+
+# Power flow
+opendssdirect.py>=0.9,<1.0
+
+# Data and machine learning
+numpy>=1.24
+pandas>=2.0
+pyarrow>=14
+xgboost>=2.0          # 2.0+ needed for enable_categorical with hist and JSON model loading
+scikit-learn>=1.3
+networkx>=3.0
+openpyxl>=3.1         # reading the eMARC household info .xlsx
+
+# Dashboard and plots
+streamlit>=1.30
+plotly>=5.18
+matplotlib>=3.7
+tabulate>=0.9         # Markdown tables in grid/run_results.py
+
+# Tests
+pytest>=7.4

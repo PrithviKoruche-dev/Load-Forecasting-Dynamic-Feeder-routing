@@ -38,7 +38,7 @@ def build_features(df, train_mean):
         f["transformer_id"] = tx
         f["tx"] = pd.Categorical([tx] * len(g), categories=TX_LIST)
         f["hour"] = g.index.hour
-        f["dow"] = g.index.dayofweek
+        f["dow"] = g.index.day_of_week
         f["is_weekend"] = (f["dow"] >= 5).astype(int)
         for L in LAGS:
             f[f"lag_{L}"] = y.shift(L)

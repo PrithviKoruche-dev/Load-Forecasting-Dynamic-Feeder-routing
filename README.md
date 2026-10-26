@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **Final Year Engineering Capstone Project**  
-> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) and medium-voltage (MV) feeder reconfiguration**.
+> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) feeder reconfiguration**. (The network also models a normally open medium-voltage tie, `TIE1`; the rerouting engine does not switch it yet.)
 
 ---
 
@@ -50,7 +50,7 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - 24-hour direct multi-step hourly demand forecasting using real smart-meter telemetry.
   - Single unified XGBoost model serving all transformers via train-mean scaling.
   - Engineered lag series ($\ge 24\text{ h}$ to prevent data leakage), rolling statistics, and cooling degree days (CDD).
-  - Outperforms persistence baselines by over **21% in nRMSE** (achieving **25.3% nRMSE** at transformer level and **14.1%** across aggregated customer pools).
+  - Outperforms persistence baselines by over **21% in nRMSE** (achieving **25.3% nRMSE** at transformer level and **10.8%** for the sum of all six transformers).
 
 - **⚡ Physics-Based Power Flow Emulation (OpenDSS):**
   - Full AC distribution power flow simulation using `opendssdirect.py`.
@@ -60,7 +60,7 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
 - **🔄 Fast Greedy Rerouting Algorithm:**
   - Multi-round heuristic search for single-switch load transfers with automatic pairwise fallback.
   - Sub-second deterministic decision-making: average execution time of **5–9 ms** (maximum $<25\text{ ms}$).
-  - Guaranteed radiality and thermal/voltage safety checks on every candidate move.
+  - Thermal and voltage safety checks on every candidate move; radial by construction (each move opens the block's home switch before closing its alternate, so no loop can form).
   - Failsafe handling: returns `no_safe_option` when grid capacity is mathematically exhausted, avoiding hazardous or unfeasible operations.
 
 - **📊 Interactive Streamlit Operator Dashboard:**
@@ -196,7 +196,9 @@ Evaluated over 1,073 continuous held-out test hours:
 | ALL (Pooled) | Same hour yesterday | 0.59 | 0.86 | 32.18% | 25.83% |
 | ALL (Pooled) | Same hour last week | 0.64 | 0.90 | 33.43% | 28.54% |
 
-> **Aggregation Effect:** When aggregating the power demand across all six transformers, individual consumer volatility smooths out significantly: **nRMSE drops from 25.3% down to 14.1%**, proving that aggregate substation-level forecasting is exceptionally stable.
+MAE and RMSE are in raw cluster kW (the households' measured demand, before scaling to the 500 kVA grid model), which is why they are small. nRMSE and MAPE are scale-free.
+
+> **Aggregation Effect:** When forecasting the total demand of all six transformers, individual consumer volatility smooths out significantly: XGBoost's **nRMSE drops from 25.4% (average per transformer) to 10.8%** for the sum. The persistence baseline shows the same effect (31.6% to 14.1%), so the aggregate is easier to forecast for any method.
 
 ---
 
@@ -229,11 +231,13 @@ The platform was subjected to extensive validation over **1,073 continuous test 
 
 | Scenario | Description | Overload Hours | Total Tx Hours Over | Successfully Rerouted | No Safe Option | Resolution Rate (%) | Mean Peak Before (%) | Mean Peak After (%) | Mean Decision Latency |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **S1 Normal Day** | Unperturbed test period demand | 0 | 0 | 0 | 0 | **100% (Nominal)** | 64.2% | 64.2% | 7.0 ms |
+| **S1 Normal Day** | Unperturbed test period demand | 0 | 0 | 0 | 0 | n/a (no overloads) | — ¹ | — ¹ | 7.0 ms |
 | **S2 Heatwave** | Feeder A (T1–T3) scaled by $\times 1.6$ | 5 | 5 | 5 | 0 | **100.0%** | 87.4% | 74.5% | 6.0 ms |
 | **S3 EV Evening Surge** | T4 $+200\text{ kW}$ between 18:00–22:00 | 23 | 22 | 23 | 0 | **100.0%** | 87.3% | 69.5% | 5.0 ms |
 | **S4 Severe Stress** | System-wide surge (all transformers $\times 2.5$) | 431 | 974 | 151 | 280 | **35.0%** | 105.5% | 79.7% | 7.0 ms |
 | **S5 Edge Case** | Catastrophic localized spike (T3 $\times 4.0$) | 882 | 879 | 388 | 494 | **44.0%** | 118.0% | 75.4% | 9.0 ms |
+
+¹ The peak columns average over overload hours only, and S1 has none. Across all S1 hours the highest transformer loading averages 32.7% (maximum 56.3%). Decision latency is machine-dependent; the figures above are from the original development laptop.
 
 ### Worst-Hour Stress Analysis
 
@@ -276,6 +280,9 @@ The project includes an operator-grade web console built with **Streamlit** and 
 ```
 Load-Forecasting-Dynamic-Feeder-routing/
 ├── README.md                      # Primary project documentation (this file)
+├── LICENSE                        # MIT licence
+├── requirements.txt               # Dependency ranges the code works with
+├── requirements-lock.txt          # Exact versions that reproduced docs/results.csv and docs/metrics.csv
 └── project/
     ├── app/                       # Streamlit web application & visualization
     │   ├── app.py                 # Main operator dashboard entry point
@@ -303,10 +310,20 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
     │   ├── results_worst_hour.csv # Worst-hour peak reduction analysis
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
+    ├── tests/                     # Automated pytest suite (see "Running the tests")
+    │   ├── test_network.py        # Network structure, default switch state, operating point
+    │   ├── test_engine.py         # Rerouting outcomes, safety limits, switch restoration
+    │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
+    │   ├── test_artifacts.py      # Forecast files, scale factors and model agree
+    │   └── test_golden_results.py # Reproduces docs/results.csv and docs/metrics.csv exactly
+    ├── pytest.ini                 # Test configuration
     ├── check_imports.py           # Environment sanity verification script
-    ├── smoke_test.py              # OpenDSS direct solver smoke test
-    └── dss_crash.log              # Thread crash diagnostics log
+    └── smoke_test.py              # OpenDSS direct solver smoke test
 ```
+
+> `data/raw/` and `data/processed/` are not in the repository (they are gitignored). The eMARC smart-meter files must be obtained from Prayas Energy Group and placed in `data/raw/` before `ml/prepare_data.py` and `ml/train_xgb.py` can be re-run. Everything else (dashboard, grid benchmark, evaluation, tests) runs from the committed forecast files.
+>
+> If OpenDSS crashes the dashboard process, `app/app.py` writes `dss_crash.log` in `project/`. It is machine-specific and gitignored.
 
 ---
 
@@ -336,8 +353,9 @@ source .venv/bin/activate
 ### 3. Install Dependencies
 ```bash
 pip install --upgrade pip
-pip install opendssdirect.py xgboost scikit-learn pandas numpy pyarrow streamlit plotly matplotlib tabulate openpyxl
+pip install -r requirements.txt
 ```
+To reproduce the published numbers with exactly the versions used to verify them, install `requirements-lock.txt` instead.
 
 ### 4. Verify System Installation
 Run the sanity checks to verify OpenDSS and ML library bindings:
@@ -373,12 +391,21 @@ python run_results.py
 ```
 
 ### 4. Re-train the Machine Learning Model
-Re-run feature engineering, training, and model export:
+Requires the eMARC raw files in `project/data/raw/` (see the note under Repository Structure). Re-run data preparation, feature engineering, training, and model export:
 ```bash
 cd project/ml
+python prepare_data.py
 python train_xgb.py
 python evaluate.py
 ```
+
+### 5. Running the Tests
+```bash
+cd project
+pytest                  # full suite, about 30 s (includes the 1,073-hour benchmark)
+pytest -m "not slow"    # quick checks only, under 2 s
+```
+The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded). If a change alters any published number, these tests fail.
 
 ---
 
