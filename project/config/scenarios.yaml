@@ -1,0 +1,51 @@
+# Stress scenarios, defined once for the benchmark, the quick test script and the dashboard.
+#
+# A scenario is a list of rules applied in order to each transformer's forecast load:
+#   type: scale   multiply the load by `factor`
+#   type: add     add `kw` kilowatts
+#   transformers: which transformers the rule touches (omit for all)
+#   hours: [start, end)  only between these clock hours, e.g. [18, 22] = 18:00 to 21:59 (omit for all day)
+
+# grid/run_results.py -> docs/results.csv. The names appear in the published tables: do not rename.
+benchmark:
+  - name: S1 Normal day
+    rules: []
+  - name: S2 Heatwave (T1-T3 x1.6)
+    rules: [{type: scale, factor: 1.6, transformers: [T1, T2, T3]}]
+  - name: S3 EV surge (T4 +200 kW, 18-22 h)
+    rules: [{type: add, kw: 200, transformers: [T4], hours: [18, 22]}]
+  - name: S4 Severe stress (all x2.5)
+    rules: [{type: scale, factor: 2.5}]
+  - name: S5 Edge case (T3 x4)
+    rules: [{type: scale, factor: 4.0, transformers: [T3]}]
+
+# grid/scenarios.py: quick check on a flat load instead of the forecast.
+quick:
+  base_kw: 300                          # about 64% loading on a 500 kVA transformer
+  scenarios:
+    - name: S1 Normal day
+      rules: []
+    - name: S2 Heatwave (T1 x1.4)
+      rules: [{type: scale, factor: 1.4, transformers: [T1]}]
+    - name: S3 EV surge (T4 +150 kW)
+      rules: [{type: add, kw: 150, transformers: [T4]}]
+    - name: S4 Severe stress (all x1.6)
+      rules: [{type: scale, factor: 1.6}]
+    - name: S5 Edge case (T3 x4)
+      rules: [{type: scale, factor: 4.0, transformers: [T3]}]
+
+# Dashboard scenario selector. Each preset is one rule whose size the operator sets with a slider.
+# `choose_transformer` lets the operator pick which single transformer the rule applies to.
+# tests/test_scenarios.py checks that the slider defaults reproduce benchmark S2, S3 and S4.
+dashboard:
+  - label: Normal
+  - label: Heatwave (feeder A)
+    rule: {type: scale, transformers: [T1, T2, T3]}
+    slider: {key: heat, label: Heatwave multiplier (T1 to T3), field: factor, min: 1.0, max: 2.5, step: 0.05, default: 1.6}
+  - label: EV evening surge
+    rule: {type: add, hours: [18, 22]}
+    slider: {key: ev_kw, label: "EV surge (kW, 18:00 to 22:00)", field: kw, min: 0, max: 400, step: 10, default: 200}
+    choose_transformer: {key: ev_tx, label: EV surge transformer, default: T4}
+  - label: Severe stress
+    rule: {type: scale}
+    slider: {key: stress, label: Severe stress multiplier (all), field: factor, min: 1.0, max: 3.5, step: 0.1, default: 2.5}

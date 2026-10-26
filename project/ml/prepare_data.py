@@ -3,33 +3,39 @@
 Output: one row per (hourly timestamp, transformer) with
     timestamp, transformer_id, region, n_households, load_kw_raw, temp_c
 load_kw_raw is the cluster's total hourly mean demand in kW BEFORE scaling to the grid's kVA rating.
+
+Also writes data/processed/meter_registry.csv: one row per household kept, with its meter ID
+(MTR-00001, ...) and the transformer (short name and DT-xxx ID) whose load it is part of.
+
+The date window, cleaning rules, household-to-transformer clusters and weather coordinates come from
+config/forecasting.yaml.
 """
 import json
-import urllib.request
+import sys
 import urllib.parse
-import pandas as pd
+import urllib.request
 from pathlib import Path
+
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # project/ -> import core
+from core import config, ids  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "processed"
-OUT.mkdir(parents=True, exist_ok=True)
 
-START, END = "2019-06-01", "2020-03-24"          # ends before the COVID lockdown (25 Mar 2020)
-MIN_BLOCKS_PER_DAY = 90                          # a day is "complete" if >= 90 of 96 blocks exist
-MIN_COMPLETE_SHARE = 0.95                        # household kept if >= 95% of days complete
-MAX_GAP_STEPS = 4                                # interpolate gaps up to 4 x 15 min = 1 h
+CFG = config.forecasting()
+START, END = CFG["data"]["start"], CFG["data"]["end"]
+MIN_BLOCKS_PER_DAY = CFG["data"]["min_blocks_per_day"]      # a day is "complete" if >= this many of 96 blocks
+MIN_COMPLETE_SHARE = CFG["data"]["min_complete_share"]      # household kept if this share of days is complete
+MAX_GAP_STEPS = CFG["data"]["max_gap_steps"]                # interpolate household gaps up to this many 15-min steps
+CLUSTER_GAP_HOURS = CFG["data"]["cluster_gap_hours"]
+WEATHER_GAP_HOURS = CFG["data"]["weather_gap_hours"]
 
-# transformer -> (region, which half of the region's households)
-TX_MAP = {
-    "T1": ("Pune city", 0), "T2": ("Pune city", 1),
-    "T3": ("Pune", None), "T4": ("Aurangabad", None),
-    "T5": ("Kanpur rural", None), "T6": ("Gonda", None),
-}
-COORDS = {                                       # approximate city centres for weather
-    "Pune city": (18.52, 73.86), "Pune": (18.52, 73.86), "Aurangabad": (19.88, 75.34),
-    "Kanpur rural": (26.45, 80.33), "Gonda": (27.13, 81.96),
-}
+# transformer -> (region, which half of the region's households; None = all of them)
+TX_MAP = {tx: (c["region"], c.get("half")) for tx, c in CFG["clusters"].items()}
+COORDS = {region: tuple(ll) for region, ll in CFG["regions"].items()}   # approximate city centres for weather
 
 
 def select_households():
@@ -38,10 +44,10 @@ def select_households():
     return main[["deployment_id", "household_id", "Region"]].drop_duplicates("deployment_id")
 
 
-def read_blocks(ids):
+def read_blocks(deployment_ids):
     parts = []
     for ch in pd.read_csv(RAW / "eMARC load blocks.csv", chunksize=2_000_000):
-        ch = ch[ch["deployment_id"].isin(ids)]
+        ch = ch[ch["deployment_id"].isin(deployment_ids)]
         if ch.empty:
             continue
         ch["date"] = pd.to_datetime(ch["date"], format="%m/%d/%Y")
@@ -59,7 +65,7 @@ def fetch_weather(region):
     lat, lon = COORDS[region]
     q = urllib.parse.urlencode({"latitude": lat, "longitude": lon, "start_date": START,
                                 "end_date": END, "hourly": "temperature_2m",
-                                "timezone": "Asia/Kolkata"})
+                                "timezone": CFG["data"]["weather_timezone"]})
     url = "https://archive-api.open-meteo.com/v1/archive?" + q
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
@@ -74,6 +80,7 @@ def fetch_weather(region):
 
 
 def main():
+    OUT.mkdir(parents=True, exist_ok=True)
     dep = select_households()
     print("Mainline deployments:", len(dep))
     blocks = read_blocks(set(dep["deployment_id"]))
@@ -98,20 +105,21 @@ def main():
     hourly = wide.resample("1h").mean()
 
     # 4) clusters -> transformers
-    rows = []
+    rows, meters = [], []
     for tx, (region, half) in TX_MAP.items():
         d = dep[dep["Region"] == region]
-        ids = d["deployment_id"].tolist()
-        if half is not None:                      # split Pune city into two halves
-            mid = len(ids) // 2
-            ids = ids[:mid] if half == 0 else ids[mid:]
-        mean_kw = hourly[ids].mean(axis=1)        # mean over households with data that hour
-        total = mean_kw * len(ids)                # = sum, with missing households filled by the mean
-        total = total.interpolate(limit=6, limit_area="inside")
+        dep_ids = d["deployment_id"].tolist()
+        if half is not None:                      # split the region's households into two halves
+            mid = len(dep_ids) // 2
+            dep_ids = dep_ids[:mid] if half == 0 else dep_ids[mid:]
+        mean_kw = hourly[dep_ids].mean(axis=1)    # mean over households with data that hour
+        total = mean_kw * len(dep_ids)            # = sum, with missing households filled by the mean
+        total = total.interpolate(limit=CLUSTER_GAP_HOURS, limit_area="inside")
         weather = fetch_weather(region).set_index("timestamp")["temp_c"].reindex(hourly.index)
-        weather = weather.interpolate(limit=3)
+        weather = weather.interpolate(limit=WEATHER_GAP_HOURS)
+        meters.append(d[d["deployment_id"].isin(dep_ids)].assign(transformer=tx))
         rows.append(pd.DataFrame({"timestamp": hourly.index, "transformer_id": tx,
-                                  "region": region, "n_households": len(ids),
+                                  "region": region, "n_households": len(dep_ids),
                                   "load_kw_raw": total.values, "temp_c": weather.values}))
     out = pd.concat(rows, ignore_index=True)
 
@@ -124,6 +132,13 @@ def main():
     print(g.round(2).to_string())
     out.to_parquet(OUT / "clusters.parquet", index=False)
     print(f"\nSaved {len(out)} rows -> {OUT / 'clusters.parquet'}")
+
+    reg = pd.concat(meters, ignore_index=True)
+    reg.insert(0, "meter_id", [ids.meter_id(i + 1) for i in range(len(reg))])
+    reg["transformer_asset_id"] = reg["transformer"].map(ids.transformer_ids())
+    reg = reg[["meter_id", "deployment_id", "household_id", "Region", "transformer", "transformer_asset_id"]]
+    reg.rename(columns={"Region": "region"}).to_csv(OUT / "meter_registry.csv", index=False)
+    print(f"Saved {len(reg)} meters -> {OUT / 'meter_registry.csv'}")
 
 
 if __name__ == "__main__":

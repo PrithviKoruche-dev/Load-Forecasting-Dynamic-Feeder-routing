@@ -1,0 +1,59 @@
+# Electrical network: assets, IDs, ratings, switches and the movable-load scheme.
+#
+# grid/network.dss holds the electrical model that OpenDSS solves. This file describes the same
+# assets for the rest of the project (engine, dashboard, database). tests/test_config.py checks that
+# the two agree, so a change in one without the other fails the tests.
+#
+# IDs follow the research specification: SUB-001, FD-001, DT-001, SW-001 (meters: MTR-00001).
+# The short names (T1, SW1H, ...) are the names used inside network.dss and on the dashboard.
+
+network_file: grid/network.dss          # relative to the project/ folder
+
+substation:
+  name: SUB
+  id: SUB-001
+  kv: 11
+
+feeders:
+  A: {id: FD-001, transformers: [T1, T2, T3]}
+  B: {id: FD-002, transformers: [T4, T5, T6]}
+
+# mv_bus: 11 kV bus the transformer hangs from. fixed_load / movable_load: the two OpenDSS loads
+# on its LV side (block a stays, block b can be switched to a neighbour).
+transformers:
+  T1: {id: DT-001, feeder: A, mv_bus: A1, rating_kva: 500, fixed_load: LD1a, movable_load: LD1b}
+  T2: {id: DT-002, feeder: A, mv_bus: A2, rating_kva: 500, fixed_load: LD2a, movable_load: LD2b}
+  T3: {id: DT-003, feeder: A, mv_bus: A3, rating_kva: 500, fixed_load: LD3a, movable_load: LD3b}
+  T4: {id: DT-004, feeder: B, mv_bus: B1, rating_kva: 500, fixed_load: LD4a, movable_load: LD4b}
+  T5: {id: DT-005, feeder: B, mv_bus: B2, rating_kva: 500, fixed_load: LD5a, movable_load: LD5b}
+  T6: {id: DT-006, feeder: B, mv_bus: B3, rating_kva: 500, fixed_load: LD6a, movable_load: LD6b}
+
+load_split:
+  movable_fraction: 0.20                # share of each transformer's load in block b
+
+# kind: lv_home (keeps block b on its own transformer), lv_alt (moves it to a neighbour), mv_tie.
+# normal: the switch position in the normal (radial) configuration.
+switches:
+  SW1H: {id: SW-001, kind: lv_home, normal: closed}
+  SW2H: {id: SW-002, kind: lv_home, normal: closed}
+  SW3H: {id: SW-003, kind: lv_home, normal: closed}
+  SW4H: {id: SW-004, kind: lv_home, normal: closed}
+  SW5H: {id: SW-005, kind: lv_home, normal: closed}
+  SW6H: {id: SW-006, kind: lv_home, normal: closed}
+  SW1A: {id: SW-007, kind: lv_alt, normal: open}
+  SW2A: {id: SW-008, kind: lv_alt, normal: open}
+  SW3A: {id: SW-009, kind: lv_alt, normal: open}
+  SW4A: {id: SW-010, kind: lv_alt, normal: open}
+  SW5A: {id: SW-011, kind: lv_alt, normal: open}
+  SW6A: {id: SW-012, kind: lv_alt, normal: open}
+  TIE1: {id: SW-013, kind: mv_tie, normal: open}
+
+# Each transformer's block b can move to `to` by opening `home` and then closing `alt`
+# (break-before-make, so the network stays radial). T3 <-> T6 cross between the two feeders.
+moves:
+  T1: {home: SW1H, alt: SW1A, to: T2}
+  T2: {home: SW2H, alt: SW2A, to: T3}
+  T3: {home: SW3H, alt: SW3A, to: T6}
+  T4: {home: SW4H, alt: SW4A, to: T5}
+  T5: {home: SW5H, alt: SW5A, to: T6}
+  T6: {home: SW6H, alt: SW6A, to: T3}

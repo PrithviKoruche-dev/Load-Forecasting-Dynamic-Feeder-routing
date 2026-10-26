@@ -26,7 +26,7 @@ def scale(project_root):
 
 def test_forecast_contract(forecast):
     """data/forecast.csv is the interface between the ML and grid modules."""
-    assert list(forecast.columns) == ["timestamp", "transformer_id", "predicted_kw", "actual_kw"]
+    assert list(forecast.columns) == ["timestamp", "transformer_id", "asset_id", "predicted_kw", "actual_kw"]
     assert sorted(forecast["transformer_id"].unique()) == TX_LIST
     assert forecast["predicted_kw"].notna().all()
     assert (forecast["predicted_kw"] >= 0).all()
@@ -34,6 +34,14 @@ def test_forecast_contract(forecast):
         assert len(g) == 1073, tx
         assert g["timestamp"].is_unique
         assert (g["timestamp"].diff().dropna() == pd.Timedelta(hours=1)).all(), f"{tx} has gaps"
+
+
+def test_asset_ids_match_config(forecast, forecast_all):
+    from core import ids
+    expected = ids.transformer_ids()
+    for df in (forecast, forecast_all):
+        pairs = df[["transformer_id", "asset_id"]].drop_duplicates()
+        assert dict(zip(pairs["transformer_id"], pairs["asset_id"])) == expected
 
 
 def test_forecast_is_test_split_of_forecast_all(forecast, forecast_all):
@@ -69,3 +77,35 @@ def test_model_loads_with_matching_features(project_root):
     booster.load_model(str(project_root / "ml" / "model_xgb.json"))
     assert booster.feature_names == FEATURES
     assert booster.num_features() == len(FEATURES)
+
+
+# ------------------------------------------------------------------ config/forecasting.yaml vs. the committed artifacts
+def test_config_matches_committed_scale_factors(scale):
+    from core import config
+    assert config.forecasting()["scaling"]["target_peak_kw"] == scale["target_peak_kw"]
+
+
+def test_config_matches_committed_data_window(forecast_all):
+    from core import config
+    d = config.forecasting()["data"]
+    assert forecast_all["timestamp"].min() == pd.Timestamp(d["start"])
+    assert forecast_all["timestamp"].max() == pd.Timestamp(d["end"]) + pd.Timedelta(hours=23)
+
+
+def test_config_matches_committed_split(forecast_all):
+    from features import split_times
+    t1, t2 = split_times(forecast_all["timestamp"])
+    assert forecast_all.loc[forecast_all["split"] == "val", "timestamp"].min() == t1
+    assert forecast_all.loc[forecast_all["split"] == "test", "timestamp"].min() == t2
+
+
+def test_model_settings_are_the_documented_values():
+    """model_xgb.json does not store its training settings (Phase 4 adds a metadata file for that), so the
+    values that produced it are pinned here. Changing one means retraining and updating this test."""
+    from core import config
+    c = config.forecasting()
+    assert c["features"]["cdd_base_c"] == 22
+    assert c["model"]["xgboost"] == {"n_estimators": 600, "learning_rate": 0.05, "max_depth": 6, "subsample": 0.8,
+                                     "colsample_bytree": 0.8, "early_stopping_rounds": 40, "tree_method": "hist",
+                                     "random_state": 42}
+    assert c["data"]["min_blocks_per_day"] == 90 and c["data"]["min_complete_share"] == 0.95

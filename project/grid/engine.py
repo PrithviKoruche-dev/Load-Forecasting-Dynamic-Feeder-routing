@@ -1,10 +1,26 @@
-"""Grid engine: OpenDSS helpers (Day 1). Rerouting algorithm is added on Day 2."""
+"""Grid engine: OpenDSS helpers and the overload-rerouting algorithm.
+
+Network assets, the movable-load scheme and all limits come from config/grid.yaml and
+config/operations.yaml.
+"""
+import sys
+import time
 from pathlib import Path
+
 import opendssdirect as dss
 
-NETWORK = Path(__file__).parent / "network.dss"
-TX = ["T1", "T2", "T3", "T4", "T5", "T6"]
-MOVABLE_FRACTION = 0.20          # block "b" = 20% of each transformer's load
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # project/ -> import core
+from core import config  # noqa: E402
+from core.logging_setup import get_logger  # noqa: E402
+from core.paths import project_path  # noqa: E402
+
+logger = get_logger(__name__)
+_GRID, _OPS = config.grid(), config.operations()
+
+NETWORK = project_path(_GRID["network_file"])
+TX = list(_GRID["transformers"])
+MOVABLE_FRACTION = _GRID["load_split"]["movable_fraction"]   # block "b" share of each transformer's load
+_LOADS = {t: (tx["fixed_load"], tx["movable_load"]) for t, tx in _GRID["transformers"].items()}
 
 
 def load_network(path=NETWORK):
@@ -17,11 +33,11 @@ def load_network(path=NETWORK):
 
 
 def set_loads(kw_by_tx: dict):
-    """kw_by_tx: {"T1": 300.0, ...}. Splits each into block a (80%) and b (20%)."""
+    """kw_by_tx: {"T1": 300.0, ...}. Splits each into block a (fixed) and block b (movable)."""
     for tx, kw in kw_by_tx.items():
-        n = tx[1:]                                   # "T1" -> "1"
-        for suffix, share in (("a", 1 - MOVABLE_FRACTION), ("b", MOVABLE_FRACTION)):
-            dss.Loads.Name(f"LD{n}{suffix}")
+        fixed, movable = _LOADS[tx]
+        for load, share in ((fixed, 1 - MOVABLE_FRACTION), (movable, MOVABLE_FRACTION)):
+            dss.Loads.Name(load)
             dss.Loads.kW(kw * share)
 
 
@@ -80,24 +96,17 @@ def close_switch(name):
     
 
 # =====================================================================
-# Day 2: overload evaluation and rerouting
+# Overload evaluation and rerouting
 # =====================================================================
-import time
-
-THRESHOLD = 85.0            # target max transformer loading (%)
-HARD_LIMIT = 100.0          # never accept a state above this
-V_MIN, V_MAX = 0.95, 1.05   # bus voltage limits (pu)
-LINE_LIMIT = 100.0          # % of normamps
+_LIM = _OPS["limits"]
+THRESHOLD = _LIM["overload_threshold_pct"]          # target max transformer loading (%)
+HARD_LIMIT = _LIM["transformer_hard_limit_pct"]     # never accept a state above this
+V_MIN, V_MAX = _LIM["voltage_min_pu"], _LIM["voltage_max_pu"]   # bus voltage limits (pu)
+LINE_LIMIT = _LIM["line_limit_pct"]                 # % of normamps
+MIN_IMPROVEMENT = _OPS["rerouting"]["min_improvement_pct"]      # greedy stop rule
 
 # Each movable block: (home switch, alt switch, neighbour it moves to)
-MOVES = {
-    "T1": ("SW1H", "SW1A", "T2"),
-    "T2": ("SW2H", "SW2A", "T3"),
-    "T3": ("SW3H", "SW3A", "T6"),
-    "T4": ("SW4H", "SW4A", "T5"),
-    "T5": ("SW5H", "SW5A", "T6"),
-    "T6": ("SW6H", "SW6A", "T3"),
-}
+MOVES = {t: (m["home"], m["alt"], m["to"]) for t, m in _GRID["moves"].items()}
 
 
 def move_label(tx):
@@ -171,6 +180,7 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = THRESHOLD) -> dict:
     load_network()
     set_loads(loads_kw)
     if not solve():
+        logger.warning("base case did not converge for loads %s", loads_kw)
         return {"status": "no_safe_option", "action": [], "before": None, "after": None,
                 "log": ["Base case did not converge: load level is unrealistic."],
                 "compute_s": round(time.perf_counter() - t0, 3)}
@@ -200,7 +210,7 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = THRESHOLD) -> dict:
             feasible += 1
             if best_m is None or m["max_loading"] < best_m["max_loading"]:
                 best, best_m = [tx], m
-        if best_m is None or best_m["max_loading"] >= current["max_loading"] - 0.05:
+        if best_m is None or best_m["max_loading"] >= current["max_loading"] - MIN_IMPROVEMENT:
             # no single move helps: try pairs
             for i, a in enumerate(free):
                 for b in free[i + 1:]:
@@ -211,7 +221,7 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = THRESHOLD) -> dict:
                     feasible += 1
                     if best_m is None or m["max_loading"] < best_m["max_loading"]:
                         best, best_m = [a, b], m
-        if best_m is None or best_m["max_loading"] >= current["max_loading"] - 0.05:
+        if best_m is None or best_m["max_loading"] >= current["max_loading"] - MIN_IMPROVEMENT:
             log.append(f"Round {rnd}: no improving feasible action found.")
             break
         apply_moves(best)
@@ -225,6 +235,8 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = THRESHOLD) -> dict:
     dt = round(time.perf_counter() - t0, 3)
     actions = [move_label(t) for t in active]
     if current["max_loading"] <= threshold:
+        logger.debug("rerouted %s: %.1f%% -> %.1f%% in %.3f s", actions, before["max_loading"],
+                     current["max_loading"], dt)
         return {"status": "rerouted", "action": actions, "before": _pack(before),
                 "after": _pack(current), "log": log, "overloaded": overloaded, "compute_s": dt}
     # not fixable: restore original topology, report best partial effort
@@ -232,6 +244,8 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = THRESHOLD) -> dict:
     solve()
     log.append("CRITICAL: no safe reconfiguration brings all transformers under the threshold."
                + (" Best partial: " + "; ".join(actions) if actions else ""))
+    logger.debug("no safe option: peak %.1f%%, overloaded %s, best partial %s",
+                 before["max_loading"], overloaded, actions)
     return {"status": "no_safe_option", "action": [], "best_partial": actions,
             "before": _pack(before), "after": _pack(current), "log": log,
             "overloaded": overloaded, "compute_s": dt}

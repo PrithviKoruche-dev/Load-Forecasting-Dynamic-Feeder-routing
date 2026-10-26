@@ -7,3 +7,6 @@ __pycache__/
 # Written by app/app.py if OpenDSS crashes the process (machine-specific, contains local paths)
 dss_crash.log
 *.log
+
+# Runtime logs (dashboard.log, dss_crash.log)
+logs/

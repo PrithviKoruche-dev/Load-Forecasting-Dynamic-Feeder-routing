@@ -1,0 +1,50 @@
+# Data preparation, feature and model settings for the 24-hour-ahead forecast (ml/).
+
+data:
+  start: "2019-06-01"
+  end: "2020-03-24"                     # ends the day before the COVID lockdown (25 Mar 2020)
+  min_blocks_per_day: 90                # a day is complete if >= 90 of its 96 15-minute blocks exist
+  min_complete_share: 0.95              # a household is kept if >= 95% of its days are complete
+  max_gap_steps: 4                      # interpolate household gaps up to 4 x 15 min = 1 h
+  cluster_gap_hours: 6                  # interpolate cluster-total gaps up to 6 h
+  weather_gap_hours: 3                  # interpolate weather gaps up to 3 h
+  weather_timezone: Asia/Kolkata
+
+# Which households form each transformer's load. `half` splits a region's households (sorted by
+# household_id) into two halves: 0 = first half, 1 = second half. Omit it to use the whole region.
+clusters:
+  T1: {region: Pune city, half: 0}
+  T2: {region: Pune city, half: 1}
+  T3: {region: Pune}
+  T4: {region: Aurangabad}
+  T5: {region: Kanpur rural}
+  T6: {region: Gonda}
+
+# Approximate city centres (latitude, longitude) for the Open-Meteo weather archive.
+regions:
+  Pune city: [18.52, 73.86]
+  Pune: [18.52, 73.86]
+  Aurangabad: [19.88, 75.34]
+  Kanpur rural: [26.45, 80.33]
+  Gonda: [27.13, 81.96]
+
+features:
+  cdd_base_c: 22                        # cooling-degree feature = max(0, temperature - 22 C)
+
+split:                                  # chronological: train, then validation, then test (the rest)
+  train: 0.70
+  val: 0.15
+
+model:
+  xgboost:
+    n_estimators: 600                   # upper bound; early stopping on the validation split picks the count
+    learning_rate: 0.05
+    max_depth: 6
+    subsample: 0.8
+    colsample_bytree: 0.8
+    early_stopping_rounds: 40
+    tree_method: hist
+    random_state: 42
+
+scaling:
+  target_peak_kw: 340.0                 # each cluster's training peak is scaled to this (about 73% of 500 kVA)

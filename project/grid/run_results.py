@@ -1,7 +1,8 @@
 """Run scenarios S1-S5 over the whole held-out test period on the real forecast.
 
 Writes docs/results.csv and docs/results.md (tables for the report).
-Scenario definitions mirror the dashboard defaults (app/app.py).
+Scenarios come from config/scenarios.yaml (the "benchmark" list) via core/scenarios.py,
+the same implementation the dashboard uses.
 
 The work is done by run_all(), so tests can call it without writing files.
 """
@@ -12,18 +13,12 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # project/ -> import core
 import engine as e  # noqa: E402
+from core import scenarios  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-THR = 85.0
-
-SCENARIOS = {
-    "S1 Normal day": lambda tx, ts, kw: kw,
-    "S2 Heatwave (T1-T3 x1.6)": lambda tx, ts, kw: kw * 1.6 if tx in ("T1", "T2", "T3") else kw,
-    "S3 EV surge (T4 +200 kW, 18-22 h)": lambda tx, ts, kw: kw + 200 if (tx == "T4" and 18 <= ts.hour < 22) else kw,
-    "S4 Severe stress (all x2.5)": lambda tx, ts, kw: kw * 2.5,
-    "S5 Edge case (T3 x4)": lambda tx, ts, kw: kw * 4.0 if tx == "T3" else kw,
-}
+THR = e.THRESHOLD
 
 
 def load_predictions(path=ROOT / "data" / "forecast.csv"):
@@ -32,11 +27,12 @@ def load_predictions(path=ROOT / "data" / "forecast.csv"):
     return fc.pivot(index="timestamp", columns="transformer_id", values="predicted_kw")
 
 
-def run_scenario(name, fn, pred, threshold=THR):
+def run_scenario(scenario, pred, threshold=THR):
     """Run one scenario over every hour. Returns (summary row, worst-hour row or None, per-hour records)."""
+    name = scenario.name
     recs = []
     for ts, r in pred.iterrows():
-        loads = {tx: float(fn(tx, ts, r[tx])) for tx in e.TX}
+        loads = {tx: float(scenario.adjust(tx, ts, r[tx])) for tx in e.TX}
         res = e.evaluate_and_reroute(loads, threshold)
         b, a = res["before"], res["after"]
         recs.append({
@@ -73,14 +69,14 @@ def run_all(pred=None, threshold=THR, verbose=False):
     """Run every scenario. Returns (summary DataFrame, worst-hour DataFrame)."""
     pred = load_predictions() if pred is None else pred
     rows, worst_rows = [], []
-    for name, fn in SCENARIOS.items():
+    for sc in scenarios.benchmark():
         t0 = time.time()
-        row, worst, _ = run_scenario(name, fn, pred, threshold)
+        row, worst, _ = run_scenario(sc, pred, threshold)
         rows.append(row)
         if worst is not None:
             worst_rows.append(worst)
         if verbose:
-            print(f"{name}: done in {time.time() - t0:.0f} s")
+            print(f"{sc.name}: done in {time.time() - t0:.0f} s")
     return pd.DataFrame(rows), pd.DataFrame(worst_rows)
 
 
@@ -93,7 +89,7 @@ def main():
     print("\nWORST OVERLOAD HOUR PER SCENARIO (before vs after the algorithm's best attempt)\n", worst.to_string(index=False))
 
     try:
-        md = ["## Scenario results (test period, threshold 85%)\n", summary.to_markdown(index=False), "",
+        md = [f"## Scenario results (test period, threshold {THR:g}%)\n", summary.to_markdown(index=False), "",
               "## Worst overload hour per scenario\n", worst.to_markdown(index=False), ""]
         (ROOT / "docs" / "results.md").write_text("\n".join(md))
     except ImportError:

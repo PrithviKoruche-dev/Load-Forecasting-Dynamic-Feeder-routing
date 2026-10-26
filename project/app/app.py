@@ -1,4 +1,8 @@
-"""Streamlit operator dashboard: forecast -> overload alert -> OpenDSS -> reroute."""
+"""Streamlit operator dashboard: forecast -> overload alert -> OpenDSS -> reroute.
+
+Scenario presets and slider ranges come from config/scenarios.yaml, limits and colour bands from
+config/operations.yaml. Operator actions are logged to logs/dashboard.log.
+"""
 import faulthandler
 import importlib
 import re
@@ -11,9 +15,16 @@ import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))                    # project/ -> import core
 sys.path.insert(0, str(ROOT / "grid"))
 sys.path.insert(0, str(Path(__file__).parent))
 import plots            # noqa: E402
+from core import config, scenarios  # noqa: E402
+from core.logging_setup import get_logger, setup as setup_logging  # noqa: E402
+from core.paths import LOGS_DIR  # noqa: E402
+
+setup_logging(log_file=LOGS_DIR / "dashboard.log")
+log = get_logger("dashboard")
 
 st.set_page_config(page_title="Feeder operator dashboard", layout="wide")
 
@@ -21,11 +32,18 @@ st.set_page_config(page_title="Feeder operator dashboard", layout="wide")
 @st.cache_resource
 def dss_worker():
     """OpenDSS is not thread-safe and Streamlit starts a new thread on every rerun.
-    So the engine is imported and used ONLY inside one permanent worker thread."""
-    crash_log = open(ROOT / "dss_crash.log", "a")          # written if the process dies natively
-    faulthandler.enable(file=crash_log, all_threads=True)
+    So the engine is imported and used ONLY inside one permanent worker thread.
+
+    The crash reporter (faulthandler) is switched on only AFTER OpenDSS has loaded: on Windows the
+    OpenDSS library raises and handles an internal exception (code 0xE0465043, "FPC") while loading,
+    and faulthandler reports every native exception, even handled ones. Enabling it earlier filled
+    the crash log with that harmless event on every launch."""
     ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dss")
     engine = ex.submit(importlib.import_module, "engine").result()
+    LOGS_DIR.mkdir(exist_ok=True)
+    crash_log = open(LOGS_DIR / "dss_crash.log", "a")      # written only if the process dies natively
+    faulthandler.enable(file=crash_log, all_threads=True)
+    log.info("dashboard started; OpenDSS engine loaded")
     return ex, engine, crash_log
 
 
@@ -44,8 +62,19 @@ def _kw_calc(threshold):
     return threshold * 300.0 / e.metrics()["max_loading"]
 
 
-SCENARIOS = ["Normal", "Heatwave (feeder A)", "EV evening surge", "Severe stress"]
-DEFAULTS = {"scenario": "Normal", "heat": 1.6, "ev_kw": 200, "ev_tx": "T4", "stress": 2.5, "thr": 85, "moves": []}
+PRESETS = {p.label: p for p in scenarios.dashboard_presets()}
+SCENARIOS = list(PRESETS)
+_OPS = config.operations()
+PARAM_KEYS = []                                  # session keys of every scenario control, in sidebar order
+DEFAULTS = {"scenario": SCENARIOS[0]}
+for _p in PRESETS.values():
+    if _p.slider:
+        PARAM_KEYS.append(_p.slider["key"])
+        DEFAULTS[_p.slider["key"]] = _p.slider["default"]
+    if _p.choose_transformer:
+        PARAM_KEYS.append(_p.choose_transformer["key"])
+        DEFAULTS[_p.choose_transformer["key"]] = _p.choose_transformer["default"]
+DEFAULTS.update({"thr": int(_OPS["limits"]["overload_threshold_pct"]), "moves": []})
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
 st.session_state.setdefault("log", [])
@@ -78,19 +107,23 @@ fc, pred = load_forecast()
 
 
 def params():
+    """Hashable snapshot of the scenario controls: (preset label, {control key: value})."""
     s = st.session_state
-    return (s["scenario"], s["heat"], s["ev_kw"], s["ev_tx"], s["stress"])
+    return (s["scenario"], tuple((k, s[k]) for k in PARAM_KEYS))
+
+
+@st.cache_data
+def scenario_for(p):
+    """The core.scenarios.Scenario selected by the controls (same rules as the benchmark)."""
+    label, values = p
+    values, preset = dict(values), PRESETS[label]
+    value = values.get(preset.slider["key"]) if preset.slider else None
+    tx = values.get(preset.choose_transformer["key"]) if preset.choose_transformer else None
+    return preset.build(value, tx)
 
 
 def adjust(tx, ts, kw, p):
-    scenario, heat, ev_kw, ev_tx, stress = p
-    if scenario.startswith("Heatwave") and tx in ("T1", "T2", "T3"):
-        return kw * heat
-    if scenario.startswith("EV") and tx == ev_tx and 18 <= ts.hour < 22:
-        return kw + ev_kw
-    if scenario.startswith("Severe"):
-        return kw * stress
-    return kw
+    return scenario_for(p).adjust(tx, ts, kw)
 
 
 def loads_at(ts, p):
@@ -160,6 +193,7 @@ def reset_switches():
     st.session_state["moves"] = []
     st.session_state["last"] = None
     st.session_state["log"].append("Switches reset to normal configuration.")
+    log.info("switches reset to normal configuration")
 
 
 def do_reroute():
@@ -169,7 +203,7 @@ def do_reroute():
     s["last"] = {"t": t, "res": res, "scenario": s["scenario"]}
     stamp = f"{t:%d %b %H:%M} [{s['scenario']}]"
     if res["status"] == "rerouted":
-        s["moves"] = re.findall(r"move (T\d)", " ".join(res["action"]))
+        s["moves"] = re.findall(r"move (T\d+)", " ".join(res["action"]))
         s["log"].append(f"{stamp} REROUTED: {'; '.join(res['action'])} | max loading "
                         f"{res['before']['max_loading']}% -> {res['after']['max_loading']}% | {res['compute_s']} s")
     elif res["status"] == "no_action":
@@ -178,6 +212,7 @@ def do_reroute():
     else:
         s["log"].append(f"{stamp} CRITICAL: no safe reconfiguration. "
                         f"Best partial: {', '.join(res.get('best_partial', [])) or 'none'}.")
+    log.info(s["log"][-1])
 
 
 # ------------------------------------------------------------------ sidebar
@@ -192,11 +227,14 @@ with st.sidebar:
     st.button("Jump to peak hour", on_click=jump_peak)
     st.selectbox("Scenario", SCENARIOS, key="scenario")
     with st.expander("Scenario parameters", expanded=True):
-        st.slider("Heatwave multiplier (T1 to T3)", 1.0, 2.5, step=0.05, key="heat")
-        st.slider("EV surge (kW, 18:00 to 22:00)", 0, 400, step=10, key="ev_kw")
-        st.selectbox("EV surge transformer", e.TX, key="ev_tx")
-        st.slider("Severe stress multiplier (all)", 1.0, 3.5, step=0.1, key="stress")
-    st.slider("Overload threshold (%)", 70, 100, key="thr")
+        for _p in PRESETS.values():
+            if _p.slider:
+                sl = _p.slider
+                st.slider(sl["label"], sl["min"], sl["max"], step=sl["step"], key=sl["key"])
+            if _p.choose_transformer:
+                st.selectbox(_p.choose_transformer["label"], e.TX, key=_p.choose_transformer["key"])
+    _thr = _OPS["dashboard"]["threshold_slider"]
+    st.slider("Overload threshold (%)", _thr["min"], _thr["max"], key="thr")
     st.caption("Forecast = held-out test period. Scenarios scale the forecast to create overloads.")
 
 # ------------------------------------------------------------------ main
@@ -225,14 +263,15 @@ left, right = st.columns([1.1, 1])
 with left:
     st.subheader("Network")
     st.plotly_chart(plots.topology_figure(loading, moves, thr))
-    st.caption("Green below 70%, amber 70% to threshold, red above threshold. Dotted grey: open tie switches. "
+    _amber = _OPS["dashboard"]["amber_from_pct"]
+    st.caption(f"Green below {_amber}%, amber {_amber}% to threshold, red above threshold. Dotted grey: open tie switches. "
                "Solid orange: LV tie closed, block b moved to a neighbour.")
 with right:
     st.subheader("Load forecast")
     sel = st.selectbox("Transformer", e.TX, key="sel_tx")
     d = fc[fc["transformer_id"] == sel].reset_index(drop=True)
     adj = None
-    if st.session_state["scenario"] != "Normal":
+    if PRESETS[st.session_state["scenario"]].rule is not None:
         adj = pd.Series([adjust(sel, ts, kw, p) for ts, kw in zip(d["timestamp"], d["predicted_kw"])],
                         index=d["timestamp"])
     st.plotly_chart(plots.load_chart(d, t, kw_at_limit(thr), adj))

@@ -1,0 +1,15 @@
+# Operating limits and decision settings used by the rerouting engine and the dashboard.
+
+limits:
+  overload_threshold_pct: 85.0          # a transformer above this is overloaded; rerouting aims below it
+  transformer_hard_limit_pct: 100.0     # no switching state may leave any transformer above this
+  voltage_min_pu: 0.95                  # bus voltage band (ANSI C84.1 range A)
+  voltage_max_pu: 1.05
+  line_limit_pct: 100.0                 # line current as % of its normal ampacity
+
+rerouting:
+  min_improvement_pct: 0.05             # greedy search stops when the best move improves the peak by less than this
+
+dashboard:
+  threshold_slider: {min: 70, max: 100} # operator-adjustable overload threshold range
+  amber_from_pct: 70                    # colour bands: green below this, amber up to the threshold, red above

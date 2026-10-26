@@ -1,28 +1,30 @@
-"""Test scenarios S1-S5 for evaluate_and_reroute (run: python grid/scenarios.py)."""
-import engine as e
+"""Quick check of evaluate_and_reroute on a flat load (run: python grid/scenarios.py).
 
-BASE = {t: 300.0 for t in e.TX}          # ~64% loading each
+Scenarios come from the "quick" list in config/scenarios.yaml. For the full benchmark on the
+real forecast, run grid/run_results.py.
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # project/ -> import core
+import engine as e  # noqa: E402
+from core import scenarios  # noqa: E402
 
 
-def scale(base, factor, only=None):
-    return {t: kw * (factor if only is None or t in only else 1.0) for t, kw in base.items()}
-
-
-SCENARIOS = {
-    "S1 Normal day":       BASE,
-    "S2 Heatwave (T1 x1.4)": scale(BASE, 1.4, only=["T1"]),
-    "S3 EV surge (T4 +150 kW)": {**BASE, "T4": BASE["T4"] + 150},
-    "S4 Severe stress (all x1.6)": scale(BASE, 1.6),
-    "S5 Edge case (T3 x4)":  scale(BASE, 4.0, only=["T3"]),
-}
-
-if __name__ == "__main__":
-    for name, loads in SCENARIOS.items():
-        r = e.evaluate_and_reroute(loads)
-        print(f"\n=== {name} ===")
+def main():
+    base_kw, quick = scenarios.quick()
+    base = {t: float(base_kw) for t in e.TX}
+    for sc in quick:
+        r = e.evaluate_and_reroute(sc.loads(base))
+        print(f"\n=== {sc.name} ===  ({sc.describe()})")
         print("status:", r["status"], "| action:", r["action"], "| time:", r["compute_s"], "s")
         if r["before"]:
             print("before:", r["before"]["max_loading"], "% | after:", r["after"]["max_loading"], "%")
             print("min V before/after:", r["before"]["min_voltage_pu"], "/", r["after"]["min_voltage_pu"])
         for line in r["log"]:
             print("  -", line)
+
+
+if __name__ == "__main__":
+    main()

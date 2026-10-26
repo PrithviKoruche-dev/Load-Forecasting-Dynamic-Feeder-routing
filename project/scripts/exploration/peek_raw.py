@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent          # the project folder, wherever you run from
+ROOT = Path(__file__).resolve().parents[2]      # the project/ folder, wherever you run from
 RAW = ROOT / "data" / "raw"
 print("Looking in:", RAW, "| exists:", RAW.exists())
 

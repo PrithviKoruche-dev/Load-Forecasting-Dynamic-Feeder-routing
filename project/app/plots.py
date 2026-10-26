@@ -1,12 +1,24 @@
-"""Plot helpers for the operator dashboard (Plotly)."""
+"""Plot helpers for the operator dashboard (Plotly).
+
+The drawing layout below is specific to the two-feeder, six-transformer network; colour bands come
+from config/operations.yaml.
+"""
+import sys
+from pathlib import Path
+
 import pandas as pd
 import plotly.graph_objects as go
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # project/ -> import core
+from core import config  # noqa: E402
+
+AMBER_FROM = config.operations()["dashboard"]["amber_from_pct"]
 
 GREEN, AMBER, RED, GREY, ORANGE = "#2e9e5b", "#f0a30a", "#d64545", "#8a8f98", "#ff7a1a"
 
 BUS = {"SUB": (0, 0), "A1": (1, 1), "A2": (2, 1), "A3": (3, 1), "B1": (1, -1), "B2": (2, -1), "B3": (3, -1)}
 TX_POS = {"T1": (1, 2.4), "T2": (2, 2.4), "T3": (3, 2.4), "T4": (1, -2.4), "T5": (2, -2.4), "T6": (3, -2.4)}
-TX_BUS = {"T1": "A1", "T2": "A2", "T3": "A3", "T4": "B1", "T5": "B2", "T6": "B3"}
+TX_BUS = {t: tx["mv_bus"] for t, tx in config.grid()["transformers"].items()}
 MV_LINES = [("SUB", "A1"), ("A1", "A2"), ("A2", "A3"), ("SUB", "B1"), ("B1", "B2"), ("B2", "B3")]
 # LV tie paths: (key, polyline, label). Cross-feeder T3<->T6 goes round the right-hand side.
 LV_TIES = {
@@ -20,7 +32,7 @@ LV_TIES = {
 def colour(pct, threshold):
     if pct > threshold:
         return RED
-    return AMBER if pct >= 70 else GREEN
+    return AMBER if pct >= AMBER_FROM else GREEN
 
 
 def _line(fig, pts, color, width=2, dash="solid"):

@@ -2,7 +2,7 @@
 import pandas as pd
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]          # the project/ folder
 RAW = ROOT / "data" / "raw"
 pd.set_option("display.width", 200)
 

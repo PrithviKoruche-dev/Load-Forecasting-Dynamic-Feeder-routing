@@ -1,13 +1,25 @@
-"""Train one XGBoost model for all transformers; write forecast files."""
+"""Train one XGBoost model for all transformers; write forecast files.
+
+Model settings, the split and the grid scaling target come from config/forecasting.yaml.
+"""
 import json
+import sys
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from pathlib import Path
-from features import FEATURES, split_times, train_stats, build_features
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))     # project/ -> import core
+from features import FEATURES, split_times, train_stats, build_features  # noqa: E402
+from core import config, ids  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET_PEAK_KW = 340.0          # training peak is mapped to ~73% of a 500 kVA transformer
+CFG = config.forecasting()
+TARGET_PEAK_KW = float(CFG["scaling"]["target_peak_kw"])   # training peak -> about 73% of a 500 kVA transformer
+XGB = dict(CFG["model"]["xgboost"])
+EARLY_STOP = XGB.pop("early_stopping_rounds")
 
 df = pd.read_parquet(ROOT / "data" / "processed" / "clusters.parquet")
 t1, t2 = split_times(df["timestamp"])
@@ -22,19 +34,13 @@ for s in ("train", "val", "test"):
 
 tr = F[(F["split"] == "train") & F["y"].notna()]
 va = F[(F["split"] == "val") & F["y"].notna()]
-model = xgb.XGBRegressor(
-    n_estimators=600, learning_rate=0.05, max_depth=6,
-    subsample=0.8, colsample_bytree=0.8,
-    early_stopping_rounds=40, tree_method="hist", enable_categorical=True, random_state=42)
+model = xgb.XGBRegressor(**XGB, early_stopping_rounds=EARLY_STOP, enable_categorical=True)
 model.fit(tr[FEATURES], tr["y"], eval_set=[(va[FEATURES], va["y"])], verbose=False)
 print("best iteration:", model.best_iteration)
 
 # Final model: refit on train+val with the iteration count fixed by early stopping
 trv = F[F["split"].isin(["train", "val"]) & F["y"].notna()]
-final = xgb.XGBRegressor(
-    n_estimators=model.best_iteration + 1, learning_rate=0.05, max_depth=6,
-    subsample=0.8, colsample_bytree=0.8,
-    tree_method="hist", enable_categorical=True, random_state=42)
+final = xgb.XGBRegressor(**{**XGB, "n_estimators": model.best_iteration + 1}, enable_categorical=True)
 final.fit(trv[FEATURES], trv["y"], verbose=False)
 
 mean_map = F["transformer_id"].map(train_mean)
@@ -51,9 +57,9 @@ F = F.rename(columns={"actual_raw": "actual_kw_raw"})
 
 cols = ["timestamp", "transformer_id", "split", "predicted_kw_raw", "actual_kw_raw",
         "predicted_refit_raw", "lag24_raw", "lag168_raw", "scale_k", "predicted_kw", "actual_kw"]
-F[cols].to_csv(ROOT / "data" / "forecast_all.csv", index=False)
+ids.add_transformer_ids(F[cols]).to_csv(ROOT / "data" / "forecast_all.csv", index=False)
 test = F[F["split"] == "test"][["timestamp", "transformer_id", "predicted_kw", "actual_kw"]]
-test.assign(predicted_kw=test["predicted_kw"].round(3), actual_kw=test["actual_kw"].round(3)).to_csv(
+ids.add_transformer_ids(test.assign(predicted_kw=test["predicted_kw"].round(3), actual_kw=test["actual_kw"].round(3))).to_csv(
     ROOT / "data" / "forecast.csv", index=False)
 final.save_model(str(ROOT / "ml" / "model_xgb.json"))
 json.dump({"target_peak_kw": TARGET_PEAK_KW, "scale_k": k, "train_mean_raw": train_mean.to_dict()},

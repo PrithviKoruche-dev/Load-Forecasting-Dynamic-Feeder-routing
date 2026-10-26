@@ -11,6 +11,7 @@ scikit-learn==1.9.1
 scipy==1.18.1
 networkx==3.7
 openpyxl==3.1.5
+pyyaml==6.0.3
 streamlit==1.66.1
 plotly==7.1.0
 matplotlib==3.11.2

@@ -21,6 +21,7 @@
 - [Physics-Constrained Rerouting Engine](#-physics-constrained-rerouting-engine)
 - [Stress Scenarios & Experimental Results](#-stress-scenarios--experimental-results)
 - [Operator Dashboard (Streamlit & Plotly)](#-operator-dashboard-streamlit--plotly)
+- [Configuration, Asset IDs & Logging](#-configuration-asset-ids--logging)
 - [Repository Structure](#-repository-structure)
 - [Getting Started & Installation](#-getting-started--installation)
 - [Usage Guide & CLI Commands](#-usage-guide--cli-commands)
@@ -275,6 +276,40 @@ The project includes an operator-grade web console built with **Streamlit** and 
 
 ---
 
+## 🧩 Configuration, Asset IDs & Logging
+
+### Configuration (`project/config/`)
+Every setting that used to be a constant in the code now lives in one of four YAML files, and `core/config.py` checks each file when it is loaded: an invalid value (a threshold above the hard limit, an unknown transformer, a malformed ID, a split that leaves no test data) stops the program with a message naming the file and key.
+
+| File | Contents |
+|:---|:---|
+| `grid.yaml` | Substation, feeders, transformers (ratings, buses, loads), switches with their normal state, the 20% movable block and the move table |
+| `operations.yaml` | 85% overload threshold, 100% hard limit, 0.95–1.05 pu voltage band, line limit, greedy stop rule, dashboard slider range and colour bands |
+| `scenarios.yaml` | Benchmark S1–S5, the quick flat-load scenarios and the dashboard presets — defined once |
+| `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target |
+
+`network.dss` still holds the electrical model that OpenDSS solves; tests check that `grid.yaml` agrees with it (transformers, ratings, buses, loads, switch states and the buses each move connects). Set `LFDR_CONFIG_DIR` to point the whole project at another config folder.
+
+**Scenarios are defined once.** The benchmark (`run_results.py`), the quick script (`grid/scenarios.py`) and the dashboard all use `core/scenarios.py`, and a test checks that the dashboard presets at their default slider values reproduce benchmark S1–S4 exactly.
+
+### Asset IDs
+Assets carry IDs in the research specification's scheme, while the short names stay in OpenDSS and on the dashboard:
+
+| Asset | IDs | Example |
+|:---|:---|:---|
+| Substation | `SUB-001` | `SUB` |
+| Feeders | `FD-001`, `FD-002` | A, B |
+| Transformers | `DT-001` … `DT-006` | `T1` → `DT-001` |
+| Switches | `SW-001` … `SW-013` | `SW1H` → `SW-001`, `TIE1` → `SW-013` |
+| Meters | `MTR-00001` … | one per household kept by `prepare_data.py` |
+
+`core/ids.py` provides the registry and conversions. The forecast files carry an `asset_id` column, and `prepare_data.py` writes `data/processed/meter_registry.csv`, linking every household's meter ID to its transformer.
+
+### Logging
+`core/logging_setup.py` gives every module the same log format. Set `LFDR_LOG_LEVEL=DEBUG` to see each rerouting decision, or `LFDR_LOG_FILE=path` to also write a file. The dashboard always writes `logs/dashboard.log`.
+
+---
+
 ## 📂 Repository Structure
 
 ```
@@ -284,24 +319,35 @@ Load-Forecasting-Dynamic-Feeder-routing/
 ├── requirements.txt               # Dependency ranges the code works with
 ├── requirements-lock.txt          # Exact versions that reproduced docs/results.csv and docs/metrics.csv
 └── project/
+    ├── config/                    # All settings, in YAML (see "Configuration, Asset IDs & Logging")
+    │   ├── grid.yaml              # Assets, IDs, ratings, switches, movable-load scheme
+    │   ├── operations.yaml        # Overload threshold, voltage/line limits, dashboard bands
+    │   ├── scenarios.yaml         # Benchmark, quick and dashboard scenarios (defined once)
+    │   └── forecasting.yaml       # Data window, cleaning rules, clusters, split, model settings
+    ├── core/                      # Shared building blocks used by every module
+    │   ├── config.py              # Loads and validates config/*.yaml
+    │   ├── ids.py                 # Asset ID registry (SUB-001, FD-001, DT-001, SW-001, MTR-00001)
+    │   ├── scenarios.py           # The one scenario implementation (benchmark, script, dashboard)
+    │   ├── logging_setup.py       # Project-wide logging
+    │   └── paths.py               # Folder locations
     ├── app/                       # Streamlit web application & visualization
     │   ├── app.py                 # Main operator dashboard entry point
     │   └── plots.py               # Plotly network topology & load curve renderers
     ├── grid/                      # Power systems simulation & reconfiguration
     │   ├── engine.py              # Heuristic greedy rerouting engine & OpenDSS API
     │   ├── network.dss            # OpenDSS circuit definition (11 kV dual-feeder)
-    │   ├── scenarios.py           # S1-S5 scenario definitions & test runner
+    │   ├── scenarios.py           # Quick check of the engine on a flat load
     │   ├── test_day1.py           # Basic power flow & manual switch test script
     │   └── run_results.py         # Full 1,073-hour simulation benchmark script
     ├── ml/                        # Machine learning forecasting pipeline
-    │   ├── prepare_data.py        # Smart meter extraction & weather synchronization
+    │   ├── prepare_data.py        # Smart meter extraction, weather sync, meter registry
     │   ├── features.py            # Feature engineering (lags, rolling stats, CDD)
     │   ├── train_xgb.py           # XGBoost training with early stopping & refit
     │   ├── evaluate.py            # Accuracy benchmarking vs persistence models
     │   └── model_xgb.json         # Serialized production XGBoost model
     ├── data/                      # Data assets & outputs
-    │   ├── raw/                   # eMARC Excel/CSV files & weather cache
-    │   ├── processed/             # Cleaned clusters.parquet
+    │   ├── raw/                   # eMARC Excel/CSV files & weather cache (not in the repository)
+    │   ├── processed/             # clusters.parquet, meter_registry.csv (not in the repository)
     │   ├── forecast.csv           # Final held-out test predictions (interface contract)
     │   ├── forecast_all.csv       # Complete train/val/test predictions
     │   └── scale_factors.json     # Normalization & grid scaling parameters
@@ -310,20 +356,27 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
     │   ├── results_worst_hour.csv # Worst-hour peak reduction analysis
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
-    ├── tests/                     # Automated pytest suite (see "Running the tests")
-    │   ├── test_network.py        # Network structure, default switch state, operating point
+    ├── tests/                     # Automated pytest suite (see "Running the Tests")
+    │   ├── test_golden_results.py # Reproduces docs/results.csv and docs/metrics.csv exactly
     │   ├── test_engine.py         # Rerouting outcomes, safety limits, switch restoration
+    │   ├── test_network.py        # Network structure, default switch state, operating point
+    │   ├── test_config.py         # Config validation; grid.yaml agrees with network.dss
+    │   ├── test_ids.py            # Asset ID scheme and registry
+    │   ├── test_scenarios.py      # Scenario rules; dashboard defaults equal the benchmark
+    │   ├── test_dashboard.py      # The dashboard run headless: start-up, scenarios, Reroute
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
-    │   ├── test_artifacts.py      # Forecast files, scale factors and model agree
-    │   └── test_golden_results.py # Reproduces docs/results.csv and docs/metrics.csv exactly
-    ├── pytest.ini                 # Test configuration
-    ├── check_imports.py           # Environment sanity verification script
-    └── smoke_test.py              # OpenDSS direct solver smoke test
+    │   └── test_artifacts.py      # Forecast files, scale factors, model and config agree
+    ├── scripts/                   # Helper scripts, not part of the pipeline
+    │   ├── check_imports.py       # Environment sanity verification
+    │   ├── smoke_test.py          # OpenDSS direct solver smoke test
+    │   └── exploration/           # One-off scripts used to study the eMARC raw files
+    ├── logs/                      # Runtime logs (created on first run, not in the repository)
+    └── pytest.ini                 # Test configuration
 ```
 
 > `data/raw/` and `data/processed/` are not in the repository (they are gitignored). The eMARC smart-meter files must be obtained from Prayas Energy Group and placed in `data/raw/` before `ml/prepare_data.py` and `ml/train_xgb.py` can be re-run. Everything else (dashboard, grid benchmark, evaluation, tests) runs from the committed forecast files.
 >
-> If OpenDSS crashes the dashboard process, `app/app.py` writes `dss_crash.log` in `project/`. It is machine-specific and gitignored.
+> The dashboard writes `logs/dashboard.log` (operator actions) and, only if OpenDSS crashes the process, `logs/dss_crash.log`. Both are machine-specific and gitignored.
 
 ---
 
@@ -360,8 +413,8 @@ To reproduce the published numbers with exactly the versions used to verify them
 ### 4. Verify System Installation
 Run the sanity checks to verify OpenDSS and ML library bindings:
 ```bash
-python project/check_imports.py
-python project/smoke_test.py
+python project/scripts/check_imports.py
+python project/scripts/smoke_test.py
 ```
 *Expected output: All packages print `OK`, and OpenDSS reports `converged: True`.*
 
@@ -377,7 +430,7 @@ streamlit run project/app/app.py
 Open your browser at `http://localhost:8501`.
 
 ### 2. Run the Switching Engine & Stress Scenarios
-Test the heuristic rerouting algorithm against scenarios S1–S5:
+Quick check of the rerouting algorithm on a flat 300 kW load (the "quick" scenarios in `config/scenarios.yaml`):
 ```bash
 cd project/grid
 python scenarios.py
@@ -402,10 +455,12 @@ python evaluate.py
 ### 5. Running the Tests
 ```bash
 cd project
-pytest                  # full suite, about 30 s (includes the 1,073-hour benchmark)
-pytest -m "not slow"    # quick checks only, under 2 s
+python -m pytest                  # full suite, about 30 s (includes the 1,073-hour benchmark)
+python -m pytest -m "not slow"    # everything except the benchmark, about 5 s
 ```
-The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded). If a change alters any published number, these tests fail.
+`python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the app headless and drive it through the S3 and S4 worst hours.
+
+> **Windows note:** while loading, the OpenDSS library raises and handles an internal exception (code `0xE0465043`, "FPC" for Free Pascal). Python's crash reporter prints such events as "Windows fatal exception" even though nothing failed. The test setup and the dashboard load OpenDSS before switching the crash reporter on, so this no longer appears.
 
 ---
 
@@ -416,7 +471,8 @@ The ML forecasting pipeline exposes a simple CSV interface utilized by the grid 
 | Column Name | Data Type | Description |
 |:---|:---:|:---|
 | `timestamp` | `YYYY-MM-DD HH:MM:SS` | Hourly timestamp of target forecast |
-| `transformer_id` | `string` (`T1` to `T6`) | Identifier of the distribution transformer |
+| `transformer_id` | `string` (`T1` to `T6`) | Short name of the distribution transformer (as in `network.dss`) |
+| `asset_id` | `string` (`DT-001` to `DT-006`) | Asset ID of the transformer (see `config/grid.yaml`) |
 | `predicted_kw` | `float` | 24-hour-ahead forecast in kW |
 | `actual_kw` | `float` | Real ground-truth demand in kW |
 
