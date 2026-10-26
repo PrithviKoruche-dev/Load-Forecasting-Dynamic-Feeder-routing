@@ -233,6 +233,7 @@ def test_controls_after_a_run_has_finished(project_root, db):
     assert (cmd["command"], cmd["args"]) == ("restart", {"from": "2020-02-28 12:00"})
     svc.handle_commands()
     assert svc.run_id == 2 and svc.clock.next_time == __import__("pandas").Timestamp("2020-02-28 12:00")
+    assert svc.clock.running and svc.status == "running"                      # a new run starts running
 
 
 def test_banner_shows_the_newest_step_not_the_last_heartbeat(project_root, db):

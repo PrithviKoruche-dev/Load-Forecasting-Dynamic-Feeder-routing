@@ -78,7 +78,7 @@ if state:
         st.button("Jump to this time", on_click=lambda: C.send("jump", time=when),
                   help="continue the current run from this hour")
         st.button("Start a new run from this time", on_click=lambda: C.send("restart", **{"from": when}),
-                  help="a new run (earlier runs stay in the database); switches return to normal")
+                  help="a new run that starts running at once (earlier runs stay in the database); switches return to normal")
         st.caption(f"Simulation range {clk['start'][:16]} to {clk['end'][:16]} (the eMARC test period).")
         st.subheader("Scenario and season")
         names = [s_.name for s_ in scenarios.benchmark()]

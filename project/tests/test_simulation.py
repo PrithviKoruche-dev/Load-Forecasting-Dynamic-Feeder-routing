@@ -286,6 +286,9 @@ def test_commands_are_executed_in_order_and_refusals_recorded(service, store):
     assert got[4][0] == "refused" and "pause it before stepping" in got[4][1]
     assert got[5][0] == "refused" and "unknown command" in got[5][1]
     assert got[7] == ("done", "run 2 from 2020-02-09 07:00") and svc.run_id == 2
+    assert svc.clock.running                                                # a new run starts running
+    svc.execute("restart", {"paused": True})
+    assert svc.run_id == 3 and not svc.clock.running
     assert store.load_sim_state("svc")["run_id"] == 2
 
 

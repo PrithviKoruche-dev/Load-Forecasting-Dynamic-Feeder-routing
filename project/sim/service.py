@@ -225,8 +225,12 @@ class Service:
             if ctl.active:
                 ctl.reset_to_normal(None)
             self.paused_for_rec, self.note = False, ""
+            if a.get("paused"):                                   # a new run starts running, unless asked otherwise
+                clk.pause()
+            else:
+                clk.resume()
             ctl.note("service", f"restarted: run {self.run_id} from {self._label(clk.next_time)}")
-            return f"run {self.run_id} from {self._label(clk.next_time)}"
+            return f"run {self.run_id} from {self._label(clk.next_time)}" + (", paused" if a.get("paused") else "")
         if command == "mode":
             ctl.set_mode(a.get("mode"), self._label())
             if a.get("mode") != "recommend":
