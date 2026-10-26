@@ -335,6 +335,8 @@ def simulation():
     _need(c["service"]["stale_after_s"] > c["service"]["heartbeat_s"], f,
           "service.stale_after_s must be longer than service.heartbeat_s")
     _need(isinstance(_get(c, f, "service", "resume_on_start"), bool), f, "service.resume_on_start must be true or false")
+    months = [m for ms in _get(c, f, "seasons").values() for m in (ms or [])]
+    _need(sorted(months) == list(range(1, 13)), f, "seasons must list every month 1-12 exactly once")
     return c
 
 

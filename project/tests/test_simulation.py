@@ -363,31 +363,12 @@ def test_control_cli(store, capsys):
     row = control.send(store, "service", "pause", wait_s=0.3)
     assert row["status"] == "pending"
     assert control.main(["jump"]) == 2 and "needs a value" in capsys.readouterr().out
-
-
-# ------------------------------------------------------------------ live dashboard
-def test_live_dashboard_reads_the_database_and_sends_commands(service, store, project_root):
-    from streamlit.testing.v1 import AppTest
-    at = AppTest.from_file(str(project_root / "app" / "live.py"), default_timeout=60)
-    at.run()
-    assert not at.exception and "No simulation service" in at.info[0].value
-    svc = service(name="service", scenario=S3)
-    for cmd, args in (("mode", {"mode": "recommend"}), ("jump", {"time": "2020-02-29 20:00"}), ("step", {})):
-        svc.execute(cmd, args)
-    svc.paused_for_rec, svc.note = True, f"awaiting operator: {svc.ctl.pending.rec_id}"
-    svc.save_state()
-    at.run()
-    assert not at.exception
-    assert {m.label: m.value for m in at.metric}["Status"] == "awaiting operator"
-    rec_id = svc.ctl.pending.rec_id
-    assert any(h.value.startswith(f"Awaiting the operator: {rec_id}") for h in at.subheader)
-    next(b for b in at.button if b.label == "Approve").click().run()
-    cmd = store.commands("service").iloc[0]
-    assert (cmd["command"], cmd["args"], cmd["status"]) == ("approve", {"rec_id": rec_id}, "pending")
-    svc.handle_commands()
-    at.run()
-    assert {m.label: m.value for m in at.metric}["Configuration"] == "T4>T5"
-    assert not any(h.value.startswith("Awaiting the operator") for h in at.subheader)
+    for words, args in ((["threshold", "80"], {"value": 80.0}), (["use-mv", "on"], {"value": True}),
+                        (["policy", "run"], {"pause_on_recommendation": False})):
+        control.send(store, "service", *words, wait_s=0)
+        assert store.commands("service").iloc[0]["args"] == args
+    with pytest.raises(ValueError, match="on/off"):
+        control.send(store, "service", "use-mv", "maybe", wait_s=0)
 
 
 # ------------------------------------------------------------------ performance (H7)

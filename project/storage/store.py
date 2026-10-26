@@ -73,9 +73,35 @@ class Store:
             if row is None:
                 c.execute(insert(S.meta), [{"key": "schema_version", "value": str(S.SCHEMA_VERSION)},
                                            {"key": "created_at", "value": _now()}])
-            elif int(row[0]) != S.SCHEMA_VERSION:
-                raise SchemaVersionError(f"database schema version {row[0]}, code expects {S.SCHEMA_VERSION}: "
-                                         f"delete or migrate {self.url}")
+                return
+            have = int(row[0])
+        if have > S.SCHEMA_VERSION:
+            raise SchemaVersionError(f"database schema version {have} is newer than this code ({S.SCHEMA_VERSION}): "
+                                     f"update the code, or use another database than {self.url}")
+        if have < S.SCHEMA_VERSION:
+            self._migrate(have)
+
+    def _migrate(self, have):
+        """Bring an older database up to date: add every column the schema has and the database lacks.
+        Tables were already created by create_all. Only additive changes, so existing data is untouched."""
+        from sqlalchemy import inspect
+        insp = inspect(self.engine)
+        added = []
+        with self.engine.begin() as c:
+            for table in S.metadata.sorted_tables:
+                present = {col["name"] for col in insp.get_columns(table.name)}
+                for col in table.columns:
+                    if col.name not in present:
+                        if not col.nullable or col.primary_key:
+                            raise SchemaVersionError(f"cannot add required column {table.name}.{col.name} "
+                                                     f"to an existing database ({self.url})")
+                        ctype = col.type.compile(dialect=self.engine.dialect)
+                        c.exec_driver_sql(f'ALTER TABLE {table.name} ADD COLUMN "{col.name}" {ctype}')
+                        added.append(f"{table.name}.{col.name}")
+            c.execute(update(S.meta).where(S.meta.c.key == "schema_version").values(value=str(S.SCHEMA_VERSION)))
+        log.info("database migrated from schema version %d to %d (%s): added %s", have, S.SCHEMA_VERSION,
+                 "; ".join(S.MIGRATIONS[v] for v in range(have + 1, S.SCHEMA_VERSION + 1)),
+                 ", ".join(added) or "no columns")
 
     def counts(self):
         with self.engine.connect() as c:
@@ -262,6 +288,35 @@ class Store:
                          "bias_kW": float(e_.mean()) if len(s_) else None})
         return pd.DataFrame(rows, columns=cols)
 
+    def forecast_errors(self, until=None, model_version=None, source=None):
+        """Every forecast with its actual value (target time <= until): timestamp, transformer, predicted_kw,
+        actual_kw, error_kw (forecast - actual). For accuracy over time (dashboard page D)."""
+        model_version = model_version or self.import_cfg["model_version"]
+        source = source or self.import_cfg["measurement_source"]
+        f, m, a = S.forecasts, S.measurements, S.assets
+        q = (select(f.c.target_time.label("timestamp"), a.c.name.label("transformer"), f.c.predicted_kw,
+                    m.c.kw.label("actual_kw"))
+             .join(a, a.c.asset_id == f.c.asset_id)
+             .join(m, (m.c.time == f.c.target_time) & (m.c.asset_id == f.c.asset_id) & (m.c.source == source))
+             .where(f.c.model_version == model_version, m.c.kw.is_not(None)))
+        if until is not None:
+            q = q.where(f.c.target_time <= pd.Timestamp(until).to_pydatetime())
+        with self.engine.connect() as c:
+            d = pd.DataFrame(c.execute(q.order_by(f.c.target_time)).mappings().all())
+        if d.empty:
+            return pd.DataFrame(columns=["timestamp", "transformer", "predicted_kw", "actual_kw", "error_kw"])
+        d["timestamp"] = pd.to_datetime(d["timestamp"])
+        d["error_kw"] = d["predicted_kw"] - d["actual_kw"]
+        return d
+
+    def forecast_count_after(self, t, model_version=None):
+        """Forecasts whose target time is still to come (after t): they cannot be scored yet."""
+        model_version = model_version or self.import_cfg["model_version"]
+        f = S.forecasts
+        with self.engine.connect() as c:
+            return c.execute(select(func.count()).select_from(f).where(
+                f.c.model_version == model_version, f.c.target_time > pd.Timestamp(t).to_pydatetime())).scalar_one()
+
     def model_versions(self):
         with self.engine.connect() as c:
             return [r[0] for r in c.execute(select(S.forecasts.c.model_version).distinct())]
@@ -284,6 +339,26 @@ class Store:
             c.execute(insert(S.recommendations), [row])
             if cands:
                 c.execute(insert(S.candidates), cands)
+
+    def next_rec_seq(self):
+        """The next recommendation number, unique across every controller on this database (the replay sandbox
+        and the simulation service both number recommendations REC-nnnn). The UPDATE comes first so that two
+        processes asking at once are serialised by the database."""
+        from sqlalchemy import cast, Integer as Int
+        m = S.meta
+        for _ in range(5):
+            try:
+                with self.engine.begin() as c:
+                    done = c.execute(update(m).where(m.c.key == "rec_seq")
+                                     .values(value=cast(cast(m.c.value, Int) + 1, S.meta.c.value.type))).rowcount
+                    if not done:
+                        top = c.execute(select(func.max(S.recommendations.c.seq))).scalar_one() or 0
+                        c.execute(insert(m).values(key="rec_seq", value=str(top + 1)))
+                    return int(c.execute(select(m.c.value).where(m.c.key == "rec_seq")).scalar_one())
+            except Exception as ex:                                     # two first allocations at once: retry
+                if "UNIQUE" not in str(ex).upper() and "duplicate" not in str(ex).lower():
+                    raise
+        raise RuntimeError("could not allocate a recommendation number")
 
     def update_recommendation_status(self, rec_id, status):
         with self.engine.begin() as c:
@@ -413,9 +488,12 @@ class Store:
         with self.engine.begin() as c:
             c.execute(self._insert(S.alerts, ignore=True), data)
 
-    def alerts(self, sim_from=None, sim_to=None, levels=None, asset=None, limit=500):
+    def alerts(self, sim_from=None, sim_to=None, levels=None, asset=None, limit=500, context_prefix=None):
+        """context_prefix: e.g. "service " for the simulation service's alerts only."""
         a = S.alerts
         q = select(a)
+        if context_prefix:
+            q = q.where(a.c.context.like(f"{context_prefix}%"))
         if sim_from:
             q = q.where(a.c.sim_time >= str(sim_from))
         if sim_to:

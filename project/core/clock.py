@@ -182,6 +182,12 @@ class SimulationClock:
             self.pause()
 
 
+def season(t, seasons):
+    """The season of simulated time t, from the month calendar in config/simulation.yaml."""
+    month = pd.Timestamp(t).month
+    return next(name for name, months in seasons.items() if month in months)
+
+
 def resolve_range(clock_cfg, available_times):
     """(start, end) from config: test_start / test_end mean the first / last available time."""
     times = pd.DatetimeIndex(available_times)

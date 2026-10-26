@@ -283,7 +283,8 @@ class Controller:
             if kind == "no_safe_option" and self.active and normal["max_loading"] < before["max_loading"] - e.min_improvement:
                 summary += (f" The normal configuration would be less overloaded (peak {normal['max_loading']:.1f}% "
                             f"instead of {before['max_loading']:.1f}%): consider resetting the switches.")
-        self._seq += 1
+        # numbers are unique across every controller sharing the database (sandbox and simulation service)
+        self._seq = self.store.next_rec_seq() if self.store is not None else self._seq + 1
         rec = Recommendation(
             rec_id=f"REC-{self._seq:04d}", created_at=self._now(), for_time=str(for_time), context=context,
             kind=kind, status="pending" if kind in ACTIONABLE else "info", summary=summary,

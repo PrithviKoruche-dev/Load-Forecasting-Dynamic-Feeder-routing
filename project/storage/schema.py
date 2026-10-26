@@ -23,7 +23,12 @@ Tables and what they hold:
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Table,
                         Text, UniqueConstraint)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+# What each version added. Opening an older database adds the missing tables and columns (additive changes
+# only; nothing is dropped or rewritten), then records the new version.
+MIGRATIONS = {
+    2: "Phase 6: per-transformer data on every simulation step (sim_steps) and service settings (sim_state)",
+}
 metadata = MetaData()
 
 meta = Table("meta", metadata,
@@ -190,7 +195,8 @@ sim_state = Table("sim_state", metadata,
                   Column("heartbeat_at", String(30)),
                   Column("achieved_factor", Float),
                   Column("lag_s", Float),
-                  Column("steps_done", Integer))
+                  Column("steps_done", Integer),
+                  Column("settings", JSON))                         # threshold, MV transfers, approval policy
 
 sim_steps = Table("sim_steps", metadata,
                   Column("id", Integer, primary_key=True, autoincrement=True),
@@ -215,6 +221,18 @@ sim_steps = Table("sim_steps", metadata,
                   Column("losses_kw", Float),
                   Column("risk", JSON),                             # {tx: risk class}
                   Column("alerts", Integer),
+                  Column("min_voltage_bus", String(20)),
+                  # per transformer ({T1: ..., T6: ...}), added in schema version 2:
+                  Column("loads_kw", JSON),                         # measured kW, scenario applied
+                  Column("measured_pct", JSON),                     # measured loading, configuration in force
+                  Column("forecast_pct", JSON),                     # forecast for hour t, same configuration
+                  Column("upper_pct", JSON),                        # its upper bound (P90)
+                  Column("next_forecast_pct", JSON),                # forecast for hour t + 1, configuration now in force
+                  Column("next_upper_pct", JSON),
+                  Column("tx_detail", JSON),                        # measured kW, kvar, kVA, loading
+                  Column("feeders", JSON),                          # per-feeder kW, current, loading, lowest voltage
+                  Column("switches", JSON),                         # switch states during hour t
+                  Column("switches_after", JSON),                   # switch states now in force
                   Column("timings_ms", JSON),                       # per stage
                   Column("duration_ms", Float),
                   UniqueConstraint("service", "run_id", "sim_time", name="uq_sim_step"))

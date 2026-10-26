@@ -90,6 +90,20 @@ class Orchestrator:
         self.scenario = benchmark_scenario(name)
         return self.scenario
 
+    def settings(self):
+        """Operator settings that change decisions (persisted by the service)."""
+        return {"threshold": self.threshold, "use_mv": self.use_mv}
+
+    def apply_settings(self, s):
+        if s.get("threshold") is not None:
+            thr = float(s["threshold"])
+            if not 0 < thr <= self.engine.hard_limit:
+                raise ValueError(f"threshold must be above 0 and at most the {self.engine.hard_limit:g}% hard limit")
+            self.threshold = thr
+        if "use_mv" in s:
+            self.use_mv = None if s["use_mv"] is None else bool(s["use_mv"])
+        return self.settings()
+
     def context(self):
         """Everything besides the time that a recommendation depends on (for the stale-approval check)."""
         return f"service {self.scenario.name} threshold={self.threshold:g} mv={self.use_mv}"
@@ -117,6 +131,9 @@ class Orchestrator:
             clock[0] = now
 
         ctl, thr = self.ctl, self.threshold
+        pend = ctl.pending                                     # a proposal whose hour has begun undecided expires
+        if pend is not None and pend.status == "pending" and pend.for_time <= time_label(t):
+            ctl.cancel_pending(f"expired: hour {pend.for_time} began without a decision")
         config_before = list(ctl.active)
 
         # 1 measure
@@ -174,13 +191,19 @@ class Orchestrator:
                 decision = rec.kind if rec else "monitor"
             else:
                 decision = "no_action"
+        config_after = list(ctl.active)
+        if config_after != config_before:                      # the next hour as it will now run
+            fc_next_after, up_next_after = self._state(fc_next, config_after), self._state(up_next, config_after)
+        else:
+            fc_next_after, up_next_after = fc_next_state, up_next_state
         lap("decide")
 
         # 7 record
         over = lambda m: None if m is None else int(sum(v > thr for v in m["loading_by_tx"].values()))  # noqa: E731
+        by_tx = lambda m: None if m is None else {k: round(v, 2) for k, v in m["loading_by_tx"].items()}  # noqa: E731
         row = {"service": self.service, "run_id": int(run_id), "sim_time": t,
                "wall_time": pd.Timestamp.now().isoformat(timespec="seconds"), "scenario": self.scenario.name,
-               "mode": ctl.mode, "config_before": config_before, "config_after": list(ctl.active),
+               "mode": ctl.mode, "config_before": config_before, "config_after": config_after,
                "decision": decision, "rec_id": rec.rec_id if rec else None,
                "forecast_max_pct": None if fc_next_state is None else round(fc_next_state["max_loading"], 2),
                "forecast_over": over(fc_next_state),
@@ -191,7 +214,15 @@ class Orchestrator:
                "measured_max_normal_pct": None if meas_normal is None else round(meas_normal["max_loading"], 2),
                "min_voltage_pu": None if meas is None else meas["min_voltage_pu"],
                "losses_kw": None if meas is None else meas["losses_kw"],
-               "risk": {tx: r["risk_class"] for tx, r in risk.items()}, "alerts": n_alerts}
+               "risk": {tx: r["risk_class"] for tx, r in risk.items()}, "alerts": n_alerts,
+               "min_voltage_bus": None if meas is None else meas.get("min_voltage_bus"),
+               "loads_kw": None if measured is None else {k: round(v, 2) for k, v in measured.items()},
+               "measured_pct": by_tx(meas), "forecast_pct": by_tx(fc_now_state), "upper_pct": by_tx(up_now_state),
+               "next_forecast_pct": by_tx(fc_next_after), "next_upper_pct": by_tx(up_next_after),
+               "tx_detail": None if meas is None else meas.get("transformers"),
+               "feeders": None if meas is None else meas.get("feeders"),
+               "switches": self.engine.switch_state(config_before),
+               "switches_after": self.engine.switch_state(config_after)}
         lap("record")                                          # time to build the row; the write is timed below
         t_write = time.perf_counter()
         row["timings_ms"] = timings

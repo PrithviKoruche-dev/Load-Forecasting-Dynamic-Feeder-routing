@@ -36,8 +36,8 @@ from core.logging_setup import get_logger  # noqa: E402
 
 log = get_logger("service")
 
-COMMANDS = ("resume", "pause", "step", "speed", "jump", "restart", "mode", "scenario", "approve", "reject",
-            "estop", "clear_estop", "rollback", "reset", "stop")
+COMMANDS = ("resume", "pause", "step", "speed", "jump", "restart", "mode", "scenario", "threshold", "use_mv",
+            "policy", "approve", "reject", "estop", "clear_estop", "rollback", "reset", "stop")
 
 
 class ServiceRunning(RuntimeError):
@@ -87,6 +87,11 @@ class Service:
             raise ClockError(f"clock.step_minutes ({self.clock.step}) must equal the data resolution of the "
                              f"{self.orch.demand.name} source ({self.orch.demand.resolution})")
         self.note, self.paused_for_rec, self._stop, self._behind = "", False, False, False
+        self.pause_on_rec = cfg["orchestrator"]["pause_on_recommendation"]     # the approval policy
+        saved = (prev or {}).get("settings") or {}
+        if saved:
+            self.orch.apply_settings(saved)
+            self.pause_on_rec = saved.get("pause_on_recommendation", self.pause_on_rec)
         self._last_beat = None
         if prev is None or new_run:
             self.run_id = (prev or {}).get("run_id", 0) + 1
@@ -142,11 +147,14 @@ class Service:
         fields = dict(run_id=self.run_id, clock=self.clock.state(), scenario=self.orch.scenario.name,
                       forecast_source=self.orch.forecasts.name, status=self.status, note=self.note, pid=os.getpid(),
                       heartbeat_at=_iso_now(), achieved_factor=self.clock.achieved_factor, lag_s=self.clock.lag_s,
-                      steps_done=self.clock.steps_done)
+                      steps_done=self.clock.steps_done, settings=self.settings())
         if started:
             fields["started_at"] = _iso_now()
         self.store.save_sim_state(self.name, **fields)
         self._last_beat = self._wall()
+
+    def settings(self):
+        return {**self.orch.settings(), "pause_on_recommendation": self.pause_on_rec}
 
     def _label(self, t=None):
         t = self.clock.last_time if t is None else t
@@ -164,7 +172,7 @@ class Service:
                               f"late; target {self.clock.factor:g}x, achieved "
                               f"{(self.clock.achieved_factor or 0):.0f}x", self._label(t), severity="warning")
             self._behind = behind
-        if self.orch.awaiting_operator and self.cfg["orchestrator"]["pause_on_recommendation"] and self.clock.running:
+        if self.orch.awaiting_operator and self.pause_on_rec and self.clock.running:
             self.clock.pause()
             self.paused_for_rec = True
             self.note = f"awaiting operator: {self.ctl.pending.rec_id} for {self.ctl.pending.for_time}"
@@ -206,14 +214,19 @@ class Service:
                 self.paused_for_rec, self.note = False, ""
             return f"next step {self._label(clk.next_time)}"
         if command == "restart":
+            start_at = a.get("from")
+            if start_at:
+                clk.jump(start_at)                                # validates the time before anything changes
             self.run_id += 1
             clk.restart()
+            if start_at:
+                clk.jump(start_at)
             ctl.cancel_pending("restart")
             if ctl.active:
                 ctl.reset_to_normal(None)
             self.paused_for_rec, self.note = False, ""
-            ctl.note("service", f"restarted: run {self.run_id} from {self._label(clk.start)}")
-            return f"run {self.run_id} from {self._label(clk.start)}"
+            ctl.note("service", f"restarted: run {self.run_id} from {self._label(clk.next_time)}")
+            return f"run {self.run_id} from {self._label(clk.next_time)}"
         if command == "mode":
             ctl.set_mode(a.get("mode"), self._label())
             if a.get("mode") != "recommend":
@@ -225,6 +238,23 @@ class Service:
             self._after_decision()
             ctl.note("service", f"scenario changed to {self.orch.scenario.name}", self._label())
             return self.orch.scenario.name
+        if command == "threshold":
+            self.orch.apply_settings({"threshold": a.get("value")})
+            ctl.cancel_pending("threshold changed")
+            self._after_decision()
+            ctl.note("service", f"overload threshold set to {self.orch.threshold:g}%", self._label())
+            return f"threshold {self.orch.threshold:g}%"
+        if command == "use_mv":
+            self.orch.apply_settings({"use_mv": bool(a.get("value"))})
+            ctl.cancel_pending("MV transfer setting changed")
+            self._after_decision()
+            return f"MV transfers {'allowed' if self.orch.use_mv else 'not used'}"
+        if command == "policy":
+            self.pause_on_rec = bool(a.get("pause_on_recommendation"))
+            if not self.pause_on_rec:
+                self._after_decision()
+            return ("recommend mode pauses the clock for each proposal" if self.pause_on_rec
+                    else "recommend mode keeps running; proposals not decided in time are superseded")
         if command == "approve":
             rec = ctl.approve(a.get("rec_id"), self._label(clk.next_time), self.orch.context())
             self._after_decision()

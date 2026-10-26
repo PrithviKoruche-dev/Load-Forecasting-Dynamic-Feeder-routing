@@ -32,3 +32,11 @@ service:
   heartbeat_s: 2.0                  # how often the service writes its status
   stale_after_s: 10                 # a service whose heartbeat is older than this is considered stopped
   resume_on_start: true             # after a restart, continue in the state it was in (running or paused)
+
+# Seasons by calendar month (gap item C4). Phase 6 labels simulated time with them; the synthetic city of
+# Phase 7 uses them to shape demand. Every month must appear exactly once.
+seasons:
+  winter: [12, 1, 2]
+  summer: [3, 4, 5]
+  monsoon: [6, 7, 8, 9]
+  transition: [10, 11]                # post-monsoon

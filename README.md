@@ -70,6 +70,7 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - Optional MV feeder transfers (open sectionaliser `A2`/`B2`, close `TIE1`) for feeder-cable and voltage problems; voltage and line violations trigger a search even when no transformer is overloaded.
 
 - **📊 Interactive Streamlit Operator Dashboard:**
+  - One multi-page app: overview, network with a clickable inspector, sortable transformer table with history, forecast accuracy over time, alerts and decisions, controls and a filterable audit log, all reading one state from the database; plus a what-if replay sandbox.
   - Live interactive single-line network diagram powered by Plotly, transformers coloured by risk class, open and closed switches drawn as they are.
   - Time-scrubbing replay slider with automatic "Jump to Peak Hour" capability.
   - Automated 24-hour day-ahead overload scanning matrix with severity tagging (`CRITICAL` vs `WARNING`).
@@ -356,7 +357,20 @@ Minimum voltage is the lowest phase voltage on any bus, including the 0.415 kV c
 
 ## 🖥 Operator Dashboard (Streamlit & Plotly)
 
-The project includes an operator-grade web console built with **Streamlit** and **Plotly**:
+One multi-page web app (`streamlit run app/app.py`, from `project/`). The **live network** pages show what the simulation service is doing (see the next section): they only read the database, and their buttons only send commands to the service, so every page and every browser shows the same, single state. If the service is not running, any page offers a **Start the service** button (it starts as a separate process and keeps running when the dashboard is closed).
+
+| Page | Gap item | What it shows |
+|:---|:---:|:---|
+| **A Overview** | G3 | Substations, feeders, transformers, switches, meters and capacity; total load, peak loading (with the change made by control), active alerts, configuration; simulated and wall-clock time, season, target and achieved speed, time of the last power flow; the last 48 hours with and without control |
+| **B Network** | G4 | Single-line diagram for the hour just measured or the next hour's forecast; click a transformer (or pick it, or a feeder) to inspect rating, load, kVA, measured and forecast loading, P90, risk class, limits and its switching options; feeder current, voltage and the transformers it supplies; every switch's state |
+| **C Transformers** | G5 | Sortable table: rating, load, loading %, forecast %, P90 %, next hour %, risk class, time; select a row for that transformer's history (48 h, 7 days or the whole run) |
+| **D Forecasting** | G6 | Scored and pending forecasts, MAE, nRMSE, bias; MAE or RMSE per day or week by transformer; any model version in the database (e.g. the live one); forecast against actual with the P10–P90 band |
+| **E Alerts and decisions** | G7 | The proposal waiting for the operator with **Approve** / **Reject**; alerts of the hour and their history; every recommendation with its switching plan, before/after bars, checks, confidence and every candidate evaluated with its outcome and reason |
+| **F Controls** | G8 | Start/stop the service; resume, pause, single step; speed (incl. accelerated and custom); jump to a date and hour, or a new run from it; scenario; season (shown; demand profiles by season arrive with the synthetic city, Phase 7); operating mode; approval policy; threshold; MV transfers; roll back, reset, emergency stop. Every control starts from the value in force in the service |
+| **G Audit log** | G9 | Events (filter by simulated day, transformer, event type and severity), recommendations with candidates, switch operations, alerts and commands with their results; for the live network or the sandbox |
+| **What-if replay** | – | The sandbox described below |
+
+**What-if replay (sandbox).** The single-page dashboard of earlier phases is kept as a sandbox page: pick any hour with a slider and study it with its own controller and switch configuration, separate from the live network:
 
 1. **Top KPI Ribbon:** overloaded transformer count, peak loading, lowest bus voltage (all buses, including the customer side), network losses, and the forecast nRMSE.
 2. **Interactive Topology Visualizer:** transformers coloured by risk class (green normal, amber elevated, orange approaching, red predicted overload, dark red measured overload); dotted grey for open switches; blue for a closed tie, a moved block or a transferred feeder section; dashed MV segments when a sectionaliser is open.
@@ -372,7 +386,7 @@ The project includes an operator-grade web console built with **Streamlit** and 
 7. **Manual switching** of any LV move (and MV transfer when enabled); unsafe configurations (loops, unsupplied loads) are refused.
 8. **Audit log** (from the database, so it survives restarts), in four tabs: *Events* (filter by simulated day, transformer, event type and severity), *Recommendations* (with the candidates of any one), *Switching operations* and *Alerts*.
 
-This replay dashboard has its own controller and time slider. The live view of the simulation service (`app/live.py`) is described in the next section; Phase 6 merges both into one multi-page dashboard.
+Recommendation numbers (REC-nnnn) are unique across the sandbox and the live network, which share the database.
 
 ---
 
@@ -400,7 +414,7 @@ Simulated time and wall-clock time are separate. Controls: resume, pause, single
 
 ### Background Service (`sim/service.py`)
 - Runs independently of any browser; **the database is the one authoritative state**: clock, run number, scenario and heartbeat (`sim_state`), every step (`sim_steps`), and the controller's mode, configuration, pending proposal and emergency stop.
-- It is steered only through **commands** written to the database (`commands` table): by the live dashboard (`app/live.py`) or from a terminal (`sim/control.py`). Commands are executed in order and each records its result or the reason it was refused (for example, approving a proposal after the scenario changed).
+- It is steered only through **commands** written to the database (`commands` table): by the dashboard's pages or from a terminal (`sim/control.py`). Commands are executed in order and each records its result or the reason it was refused (for example, approving a proposal after the scenario changed).
 - **Restart recovery:** after a crash or Ctrl+C, the next start continues with the step after the last one recorded. A test kills the service process part way through S3 and restarts it: every hour is recorded exactly once and the outcome equals the uninterrupted run.
 - Only one service per name runs at a time: a second one refuses to start while the first one's heartbeat is fresh.
 
@@ -477,9 +491,11 @@ On first start the dashboard creates `project/data/twin.db` (SQLite), imports `d
 | `events`, `event_assets` | The audit log with severity, and which transformers and switches each event concerns |
 | `alerts` | Risk and voltage/line alerts as they were observed |
 | `controller_state` | Mode, configuration, emergency stop and undo stack (one row per controller: `default` for the replay dashboard, `service` for the simulation service) |
-| `sim_state`, `sim_steps` | The simulation service's clock, run, scenario and heartbeat; one row per completed step |
+| `sim_state`, `sim_steps` | The simulation service's clock, run, scenario, settings and heartbeat; one row per completed step, with each transformer's measured and forecast loading, feeder results and switch states |
 | `commands` | Commands to the service and their results |
 | `model_registry` | Forecasting model versions with features, windows, metrics and file hash |
+
+**Upgrades:** a database created by an earlier phase is brought up to date when it is opened: missing tables and columns are added and the schema version is recorded (`storage/schema.py`, `MIGRATIONS`); nothing is dropped or rewritten, so an existing `twin.db` keeps its history.
 
 To use PostgreSQL instead, set `url` in `config/storage.yaml` (or the `LFDR_DB_URL` environment variable) to e.g. `postgresql+psycopg://user:password@localhost:5432/feeder` and `pip install "psycopg[binary]"`. The code uses SQLAlchemy Core and dialect-aware inserts, so nothing else changes.
 
@@ -515,9 +531,18 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── logging_setup.py       # Project-wide logging
     │   └── paths.py               # Folder locations
     ├── app/                       # Streamlit web application & visualization
-    │   ├── app.py                 # Main operator dashboard entry point
-    │   ├── plots.py               # Plotly network topology & load curve renderers
-    │   └── live.py                # Live view of the simulation service (reads the database, sends commands)
+    │   ├── app.py                 # Dashboard entry point: page navigation
+    │   ├── common.py              # Shared by the pages: database, service state, commands, start the service
+    │   ├── plots.py               # Plotly network topology, load curves, before/after, time series
+    │   └── views/                 # One file per page
+    │       ├── overview.py        # A: live network overview
+    │       ├── network.py         # B: single-line diagram with transformer/feeder inspector
+    │       ├── transformers.py    # C: sortable transformer table with history
+    │       ├── forecasting.py     # D: forecast accuracy over time
+    │       ├── decisions.py       # E: alerts, waiting proposal, recommendations with candidates
+    │       ├── controls.py        # F: service, clock, scenario, mode, policy, threshold, emergency stop
+    │       ├── audit.py           # G: filterable audit log
+    │       └── replay.py          # What-if replay sandbox (the earlier single-page dashboard)
     ├── sim/                       # Closed-loop simulation (Phase 5)
     │   ├── orchestrator.py        # One step: measure, power flow, forecast, detect, validate, apply, record
     │   ├── sources.py             # Demand and forecast sources (classic eMARC data; precomputed or live forecasts)
@@ -582,7 +607,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_decisions.py      # Modes, approval, stale proposals, rollback, emergency stop
     │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto, restart
     │   ├── test_storage.py        # Schema, imports, filters, batching, retention, restart restores everything
-    │   ├── test_simulation.py     # Clock, orchestrator, service commands, kill-and-restart recovery, live view, benchmark
+    │   ├── test_simulation.py     # Clock, orchestrator, service commands, kill-and-restart recovery, benchmark
+    │   ├── test_pages.py          # Every dashboard page headless; service settings; schema migration
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
@@ -644,11 +670,11 @@ python project/scripts/smoke_test.py
 ## 💻 Usage Guide & CLI Commands
 
 ### 1. Launch the Operator Dashboard
-Launch the interactive web application:
 ```bash
-streamlit run project/app/app.py
+cd project
+streamlit run app/app.py
 ```
-Open your browser at `http://localhost:8501`.
+Open your browser at `http://localhost:8501`. The live pages need the simulation service: start it from any page (**Start the service**) or as in step 5.
 
 ### 2. Run the Switching Engine & Stress Scenarios
 Quick check of the rerouting algorithm on a flat 300 kW load (the "quick" scenarios in `config/scenarios.yaml`):
@@ -679,10 +705,9 @@ python train_v2.py
 ```
 
 ### 5. Run the Closed-Loop Simulation Service
-Two terminals, both in `project/`:
+The dashboard's **Start the service** button is enough. To run it in a terminal instead (in `project/`):
 ```bash
-python sim/service.py                     # terminal 1: the service (Ctrl+C stops it; starting it again resumes)
-streamlit run app/live.py                 # terminal 2: the live view, at http://localhost:8501
+python sim/service.py                     # Ctrl+C stops it; starting it again resumes
 ```
 Useful options: `--speed accelerated` (one simulated year per 24 h), `--speed max`, `--mode auto`, `--scenario "S3 EV surge (T4 +200 kW, 18-22 h)"`, `--forecast live` (needs `data/processed/clusters.parquet`), `--paused`, `--new-run`. While it runs, it can also be steered from any terminal:
 ```bash
@@ -692,9 +717,10 @@ python sim/control.py speed 86400          # one simulated day per second
 python sim/control.py jump "2020-02-29 18:00"
 python sim/control.py mode auto            # monitor | recommend | auto
 python sim/control.py approve REC-0001     # reject REC-0001
+python sim/control.py threshold 80         # use-mv on | off; policy pause | run
 python sim/control.py steps 10             # the last 10 steps
 ```
-In recommend mode the clock pauses itself when a switching proposal is waiting; approving or rejecting it (on the live page or with `control.py`) lets the clock run on.
+In recommend mode the clock pauses itself when a switching proposal is waiting; approving or rejecting it (on the Alerts and decisions page or with `control.py`) lets the clock run on. With the approval policy set to *run* (`policy run`), the clock does not wait, and a proposal whose hour begins without a decision expires (it is marked superseded, with the reason in the audit log).
 
 The report tables are produced by:
 ```bash
@@ -706,9 +732,9 @@ python sim/benchmark.py                    # docs/performance.csv (about 1 min, 
 ```bash
 cd project
 python -m pytest                  # full suite, about 5 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
-python -m pytest -m "not slow"    # everything except those, about 45 s
+python -m pytest -m "not slow"    # everything except those, about 1 min
 ```
-`python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the app headless and drive it through the S3 and S4 worst hours.
+`python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the pages headless: the sandbox through the S3 and S4 worst hours, and every live page against a database filled by a real service run (approving a proposal, changing the threshold, filtering the log).
 
 > **Windows note:** while loading, the OpenDSS library raises and handles an internal exception (code `0xE0465043`, "FPC" for Free Pascal). Python's crash reporter prints such events as "Windows fatal exception" even though nothing failed. The test setup and the dashboard load OpenDSS before switching the crash reporter on, so this no longer appears.
 

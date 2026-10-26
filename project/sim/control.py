@@ -8,6 +8,9 @@
     python sim/control.py scenario "S3 EV surge (T4 +200 kW, 18-22 h)"
     python sim/control.py approve REC-0003 | reject REC-0003
     python sim/control.py estop | clear-estop | rollback | reset
+    python sim/control.py threshold 80
+    python sim/control.py use-mv on | use-mv off          # allow MV feeder transfers
+    python sim/control.py policy pause | policy run        # recommend mode: pause for each proposal, or keep running
     python sim/control.py steps 10          # the last 10 steps
 
 Commands go through the database, so this works from any terminal while the service runs; the service
@@ -23,7 +26,22 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from core import config  # noqa: E402
 
-ARGS = {"speed": "speed", "jump": "time", "mode": "mode", "scenario": "name", "approve": "rec_id", "reject": "rec_id"}
+ARGS = {"speed": "speed", "jump": "time", "mode": "mode", "scenario": "name", "approve": "rec_id", "reject": "rec_id",
+        "threshold": "value", "use_mv": "value", "policy": "pause_on_recommendation"}
+_YES = {"on": True, "yes": True, "true": True, "1": True, "pause": True,
+        "off": False, "no": False, "false": False, "0": False, "run": False}
+
+
+def _value(command, value):
+    """Command-line text -> the argument the service expects."""
+    if command == "threshold":
+        return float(value)
+    if command in ("use_mv", "policy"):
+        v = str(value).lower()
+        if v not in _YES:
+            raise ValueError(f"{command} takes on/off (policy: pause/run), got {value!r}")
+        return _YES[v]
+    return value
 
 
 def service_alive(state, stale_after_s=None):
@@ -44,7 +62,7 @@ def send(store, service, command, value=None, wait_s=10.0, source="cli"):
     """Queue a command; wait for the service to execute it. Returns the command row (status may still be
     pending if the service is not running)."""
     command = command.replace("-", "_")
-    args = {ARGS[command]: value} if command in ARGS else {}
+    args = {ARGS[command]: _value(command, value)} if command in ARGS else {}
     cid = store.send_command(service, command, args, source=source)
     t_end = time.monotonic() + wait_s
     while time.monotonic() < t_end:

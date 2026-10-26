@@ -82,6 +82,7 @@ def topology_figure(loading, moves, threshold, risk_by_tx=None, switch_state=Non
     colours = [RISK_COLOURS.get((risk_by_tx or {}).get(t), None) or colour(loading[t], threshold) for t in TX_POS]
     fig.add_trace(go.Scatter(                                # transformers
         x=[TX_POS[t][0] for t in TX_POS], y=[TX_POS[t][1] for t in TX_POS], mode="markers+text",
+        customdata=list(TX_POS), name="transformers",                  # clicking one selects it (Network page)
         text=[f"<b>{t}</b><br>{loading[t]:.0f}%" for t in TX_POS], textfont=dict(color="white", size=12),
         marker=dict(size=58, color=colours, line=dict(width=2, color="white")),
         hovertext=[f"{t}: {loading[t]:.1f}% of rating" + (f" ({(risk_by_tx or {}).get(t, '').replace('_', ' ')})"
@@ -127,4 +128,19 @@ def before_after_chart(before, after, threshold):
     fig.add_hline(y=threshold, line_dash="dash", line_color=RED, annotation_text=f"{threshold:.0f}% limit")
     fig.update_layout(barmode="group", height=300, margin=dict(l=0, r=0, t=10, b=0),
                       yaxis_title="transformer loading (%)", legend=dict(orientation="h", y=1.15))
+    return fig
+
+def lines_chart(x, series, threshold=None, y_title="loading %", height=300, band=None):
+    """Simple time-series chart. series: [(name, values, colour, dash)]; band: (name, low, high) shaded."""
+    fig = go.Figure()
+    if band is not None:
+        name, lo, hi = band
+        fig.add_scatter(x=x, y=hi, line=dict(width=0), showlegend=False, hoverinfo="skip")
+        fig.add_scatter(x=x, y=lo, line=dict(width=0), fill="tonexty", fillcolor="rgba(255,127,14,0.15)", name=name)
+    for name, y, colour_, dash in series:
+        fig.add_scatter(x=x, y=y, name=name, line=dict(color=colour_, dash=dash or "solid", width=2))
+    if threshold is not None:
+        fig.add_hline(y=threshold, line_dash="dash", line_color=RED, annotation_text=f"{threshold:g}%")
+    fig.update_layout(height=height, margin=dict(l=10, r=10, t=10, b=10), yaxis_title=y_title,
+                      legend=dict(orientation="h", y=-0.25))
     return fig

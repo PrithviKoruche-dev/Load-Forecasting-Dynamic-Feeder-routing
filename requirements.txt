@@ -19,7 +19,7 @@ sqlalchemy>=2.0       # database layer (SQLite by default, PostgreSQL optional)
 psutil>=5.9           # simulation service: is it alive, and memory use (sim/benchmark.py)
 
 # Dashboard and plots
-streamlit>=1.30
+streamlit>=1.37        # 1.37+ needed: multi-page navigation, self-refreshing pages, clickable tables and charts
 plotly>=5.18
 matplotlib>=3.7
 tabulate>=0.9         # Markdown tables in grid/run_results.py

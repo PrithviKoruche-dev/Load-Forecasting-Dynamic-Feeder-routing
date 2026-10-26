@@ -9,7 +9,7 @@ S3_WORST = dt.datetime(2020, 2, 29, 21, 0)
 
 
 def start(project_root):
-    at = AppTest.from_file(str(project_root / "app" / "app.py"), default_timeout=120)
+    at = AppTest.from_file(str(project_root / "app" / "views" / "replay.py"), default_timeout=120)
     at.run()
     assert not at.exception, at.exception
     return at

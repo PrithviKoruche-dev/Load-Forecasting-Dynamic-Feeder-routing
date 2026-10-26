@@ -65,6 +65,7 @@ BAD_EDITS = [
     ("simulation", lambda d: d["orchestrator"].update(scenario="S9"), config.simulation, "orchestrator.scenario must be one of"),
     ("simulation", lambda d: d["orchestrator"].update(forecast_source="psychic"), config.simulation,
      "forecast_source must be precomputed or live"),
+    ("simulation", lambda d: d["seasons"].update(winter=[12, 1]), config.simulation, "every month 1-12 exactly once"),
     ("simulation", lambda d: d["service"].update(stale_after_s=1), config.simulation,
      "stale_after_s must be longer than service.heartbeat_s"),
 ]
