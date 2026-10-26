@@ -46,8 +46,21 @@ def solve():
     return dss.Solution.Converged()
 
 
+def node_voltages_pu():
+    """{bus: [per-unit magnitude of each phase node]} for every bus.
+
+    AllBusMagPu returns one value per NODE (bus.phase), in the order of AllNodeNames. (Zipping it with
+    AllBusNames, as an earlier version did, paired 19 bus names with the first 19 of 57 node values, so
+    only the 11 kV buses were ever checked against the voltage limits.)"""
+    out = {}
+    for node, v in zip(dss.Circuit.AllNodeNames(), dss.Circuit.AllBusMagPu()):
+        out.setdefault(node.split(".")[0], []).append(v)
+    return out
+
+
 def bus_voltages_pu():
-    return dict(zip(dss.Circuit.AllBusNames(), dss.Circuit.AllBusMagPu()))
+    """{bus: lowest phase voltage in pu}."""
+    return {b: min(v) for b, v in node_voltages_pu().items()}
 
 
 def transformer_loading():
@@ -137,8 +150,7 @@ def revert_moves(txs):
 
 def full_metrics():
     m = metrics()
-    v = bus_voltages_pu()
-    m["max_voltage_pu"] = max(x for b, x in v.items() if b.lower() != "sub")
+    m["max_voltage_pu"] = max(max(v) for b, v in node_voltages_pu().items() if b.lower() != "sub")
     return m
 
 

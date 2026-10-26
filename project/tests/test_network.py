@@ -59,3 +59,19 @@ def test_loading_scales_with_load(base_loads, mult, expected):
     e.set_loads({t: kw * mult for t, kw in base_loads.items()})
     assert e.solve()
     assert e.metrics()["max_loading"] == pytest.approx(expected, abs=0.1)
+
+
+def test_voltage_check_covers_every_bus_including_lv(base_loads):
+    """Regression: voltages used to be read by zipping 19 bus names with 57 per-phase values, so only the
+    11 kV buses were checked. The 0.415 kV customer-side buses must be included."""
+    e.load_network()
+    e.set_loads({**base_loads, "T3": 1200.0})
+    assert e.solve()
+    v = e.bus_voltages_pu()
+    assert set(v) == {b.lower() for b in dss.Circuit.AllBusNames()}
+    lv = {b: x for b, x in v.items() if b.startswith("l")}
+    mv = {b: x for b, x in v.items() if not b.startswith("l") and b != "sub"}
+    assert min(lv.values()) < min(mv.values())          # the drop across the transformer
+    assert min(lv, key=lv.get) == "l3b"                 # T3's movable block is the lowest point
+    assert e.metrics()["min_voltage_pu"] == pytest.approx(0.9222, abs=1e-4)
+    assert not e.is_feasible(e.full_metrics())          # below 0.95 pu: must be rejected

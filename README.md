@@ -244,12 +244,14 @@ The platform was subjected to extensive validation over **1,073 continuous test 
 
 | Scenario | Worst Timestamp | Engine Status | Peak Before (%) | Peak After (%) | Min Voltage Before (pu) | Min Voltage After (pu) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **S2 Heatwave** | 12 Mar 08:00 | `rerouted` | 88.6% | **79.6%** | 0.9936 pu | 0.9936 pu |
-| **S3 EV Surge** | 29 Feb 21:00 | `rerouted` | 91.5% | **72.9%** | 0.9958 pu | 0.9958 pu |
-| **S4 Severe Stress** | 21 Feb 06:00 | `no_safe_option` | 143.8% | 143.8% | 0.9907 pu | 0.9907 pu |
-| **S5 Edge Case** | 17 Feb 07:00 | `no_safe_option` | 200.6% | 200.6% | 0.9891 pu | 0.9891 pu |
+| **S2 Heatwave** | 12 Mar 08:00 | `rerouted` | 88.6% | **79.6%** | 0.9739 pu | 0.9760 pu |
+| **S3 EV Surge** | 29 Feb 21:00 | `rerouted` | 91.5% | **72.9%** | 0.9748 pu | 0.9798 pu |
+| **S4 Severe Stress** | 21 Feb 06:00 | `no_safe_option` | 143.8% | 143.8% | 0.9581 pu | 0.9581 pu |
+| **S5 Edge Case** | 17 Feb 07:00 | `no_safe_option` | 200.6% | 200.6% | 0.9405 pu | 0.9405 pu |
 
-> **Key Finding:** In realistic high-stress scenarios (S2 heatwave and S3 EV charging surges), the engine achieved a **100% resolution rate**, eliminating all transformer overloads and bringing peak utilization well below the 85% safety boundary without causing any voltage drops.
+Minimum voltage is the lowest phase voltage on any bus, including the 0.415 kV customer side. An earlier version checked only the 11 kV buses; correcting this changed no rerouting decision, only these voltage columns (see `project/docs/archive/README.md`). In the S5 worst hour T3's customer side is below the 0.95 pu limit.
+
+> **Key Finding:** In realistic high-stress scenarios (S2 heatwave and S3 EV charging surges), the engine achieved a **100% resolution rate**, eliminating all transformer overloads and bringing peak utilization well below the 85% safety boundary, while the lowest customer-side voltage rose slightly (0.974 → 0.976 pu and 0.975 → 0.980 pu in the worst hours).
 
 ---
 

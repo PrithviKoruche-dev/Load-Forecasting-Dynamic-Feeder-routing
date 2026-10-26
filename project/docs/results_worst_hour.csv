@@ -1,5 +1,5 @@
 scenario,worst_hour,status,peak_before_%,peak_after_%,min_V_before_pu,min_V_after_pu
-S2 Heatwave (T1-T3 x1.6),12 Mar 08:00,rerouted,88.6,79.6,0.9936,0.9936
-"S3 EV surge (T4 +200 kW, 18-22 h)",29 Feb 21:00,rerouted,91.5,72.9,0.9958,0.9958
-S4 Severe stress (all x2.5),21 Feb 06:00,no_safe_option,143.8,143.8,0.9907,0.9907
-S5 Edge case (T3 x4),17 Feb 07:00,no_safe_option,200.6,200.6,0.9891,0.9891
+S2 Heatwave (T1-T3 x1.6),12 Mar 08:00,rerouted,88.6,79.6,0.9739,0.976
+"S3 EV surge (T4 +200 kW, 18-22 h)",29 Feb 21:00,rerouted,91.5,72.9,0.9748,0.9798
+S4 Severe stress (all x2.5),21 Feb 06:00,no_safe_option,143.8,143.8,0.9581,0.9581
+S5 Edge case (T3 x4),17 Feb 07:00,no_safe_option,200.6,200.6,0.9405,0.9405
