@@ -44,9 +44,10 @@ if state:
         st.caption(f"Status **{state['status'].replace('_', ' ')}** · last step {(clk.get('last_time') or '-')[:16]} · "
                    f"next {clk['next_time'][:16]}")
         b1, b2, b3 = st.columns(3)
-        b1.button("Resume", on_click=C.send, args=("resume",), disabled=clk.get("running", False))
+        finished = state["status"] == "finished"
+        b1.button("Resume", on_click=C.send, args=("resume",), disabled=clk.get("running", False) or finished)
         b2.button("Pause", on_click=C.send, args=("pause",), disabled=not clk.get("running", False))
-        b3.button("Step", on_click=C.send, args=("step",), disabled=clk.get("running", False),
+        b3.button("Step", on_click=C.send, args=("step",), disabled=clk.get("running", False) or finished,
                   help="run one step while paused")
         def same(v, w):
             try:
@@ -64,9 +65,13 @@ if state:
     with b:
         st.subheader("Time")
         start, end = pd.Timestamp(clk["start"]), pd.Timestamp(clk["end"])
-        nxt = pd.Timestamp(clk["next_time"])
+        nxt = min(max(pd.Timestamp(clk["next_time"]), start), end)   # after the last step of a run, next is past the end
+        if state["status"] == "finished":
+            st.info("This run has reached the end of the data. Pick a date and hour, then start a new run.")
         st.session_state.setdefault("jump_date", nxt.date())          # kept while the clock runs on
         st.session_state.setdefault("jump_hour", nxt.hour)
+        if not start.date() <= st.session_state["jump_date"] <= end.date():
+            st.session_state["jump_date"] = nxt.date()
         d = st.date_input("Date", min_value=start.date(), max_value=end.date(), key="jump_date")
         h = st.number_input("Hour", 0, 23, key="jump_hour")
         when = f"{datetime.combine(d, dtime(int(h))):%Y-%m-%d %H:%M}"

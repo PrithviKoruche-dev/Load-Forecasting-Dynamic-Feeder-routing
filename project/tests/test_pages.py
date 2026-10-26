@@ -212,6 +212,29 @@ def test_controls_speed_and_jump_inputs(project_root, db):
     assert (cmd["command"], cmd["args"]) == ("jump", {"time": "2020-03-01 18:00"})
 
 
+def test_controls_after_a_run_has_finished(project_root, db):
+    """At the end of the data the next hour lies past the range: the page must still offer a new run."""
+    store, info = db
+    svc = make_service(store)
+    svc.execute("reject", {"rec_id": info["rec_id"]})
+    svc.execute("jump", {"time": "2020-03-24 22:00"})
+    svc.step_once()
+    svc.step_once()
+    svc.save_state()
+    assert store.load_sim_state("service")["status"] == "finished"
+    at = page(project_root, "controls")
+    assert any("reached the end of the data" in i.value for i in at.info)
+    assert next(b for b in at.button if b.label == "Resume").disabled
+    assert at.date_input(key="jump_date").value.isoformat() == "2020-03-24"
+    at.date_input(key="jump_date").set_value(__import__("datetime").date(2020, 2, 28)).run()
+    at.number_input(key="jump_hour").set_value(12).run()
+    next(b for b in at.button if b.label == "Start a new run from this time").click().run()
+    cmd = store.commands("service").iloc[0]
+    assert (cmd["command"], cmd["args"]) == ("restart", {"from": "2020-02-28 12:00"})
+    svc.handle_commands()
+    assert svc.run_id == 2 and svc.clock.next_time == __import__("pandas").Timestamp("2020-02-28 12:00")
+
+
 def test_banner_shows_the_newest_step_not_the_last_heartbeat(project_root, db):
     store, info = db
     st_ = store.load_sim_state("service")
