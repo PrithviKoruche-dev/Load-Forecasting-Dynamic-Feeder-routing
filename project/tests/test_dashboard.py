@@ -121,3 +121,14 @@ def test_automatic_mode_switches_by_itself(app):
     assert ctl(app).active == ["T4>T5"]
     assert metric(app, "Peak loading") == "72.9 %"
     assert [h["type"] for h in ctl(app).history][-2:] == ["recommendation", "applied"]
+
+
+def test_mitigation_from_the_dashboard(app):
+    app.selectbox(key="scenario").set_value("Severe stress").run()
+    app.sidebar.slider(key="t").set_value(S3_WORST).run()            # 29 Feb 21:00
+    assert metric(app, "Peak loading") == "122.2 %"
+    click(app, "Get recommendation")
+    assert ctl(app).last.kind == "mitigate"
+    assert any(w.value.startswith("Mitigation, not a full fix") for w in app.warning)
+    click(app, "Approve")
+    assert ctl(app).active == ["T4>T5"] and metric(app, "Peak loading") == "97.1 %"

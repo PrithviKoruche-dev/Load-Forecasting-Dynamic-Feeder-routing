@@ -132,3 +132,42 @@ def test_snapshot_is_plain_data(ctl, loads):
     snap = ctl.snapshot()
     assert snap["mode"] == "recommend" and snap["pending"]["rec_id"] == "REC-0001"
     assert isinstance(snap["history"], list) and snap["seq"] == 1
+
+
+# ------------------------------------------------------------------ mitigation when no complete fix exists
+S4_HOUR = "2020-02-29 21:00"
+
+
+def test_mitigation_is_offered_not_presented_as_a_fix(ctl, loads):
+    """S4 at 29 Feb 21:00: no configuration reaches 85%, but moving T4's block takes it from 122.2% (over the
+    100% hard limit) to 97.1% with every hard limit respected."""
+    rec = ctl.recommend(loads("S4", S4_HOUR), S4_HOUR, "S4")
+    assert rec.kind == "mitigate" and rec.status == "pending" and rec.engine_status == "no_safe_option"
+    assert rec.summary.startswith("Mitigation, not a full fix") and "T4, T5 remain above 85%" in rec.summary
+    assert rec.target == ["T4>T5"] and rec.binding
+    assert all(c["ok"] for c in rec.checks)                          # checked against the hard limit
+    assert any("target not reachable" in c["limit"] for c in rec.checks)
+    assert rec.confidence["label"] == "low" and "hard limit" in rec.confidence["basis"]
+    ctl.approve(rec.rec_id, S4_HOUR, "S4")
+    assert ctl.active == ["T4>T5"]
+    again = ctl.recommend(loads("S4", S4_HOUR), S4_HOUR, "S4")
+    assert again.kind == "no_safe_option" and "already in force" in again.summary
+
+
+def test_auto_mode_applies_a_mitigation(ctl, loads):
+    ctl.set_mode("auto")
+    rec = ctl.recommend(loads("S4", S4_HOUR), S4_HOUR, "S4")
+    assert rec.kind == "mitigate" and rec.status == "applied" and ctl.active == ["T4>T5"]
+
+
+def test_no_mitigation_when_nothing_respects_the_limits(ctl, loads):
+    """S5 worst hour: every option leaves T3 far above 100%, so nothing is offered."""
+    rec = ctl.recommend(loads("S5", "2020-02-17 07:00"), "2020-02-17 07:00", "S5")
+    assert rec.kind == "no_safe_option" and rec.plan == []
+
+
+def test_hint_when_the_present_configuration_is_worse_than_normal(ctl, loads):
+    ctl.set_configuration(["T6>T3"])                                # pushes even more load onto T3
+    rec = ctl.recommend(loads("S5", "2020-02-17 07:00"), "2020-02-17 07:00", "S5")
+    assert rec.kind == "no_safe_option"
+    assert "normal configuration would be less overloaded (peak 200.6% instead of 206.2%)" in rec.summary

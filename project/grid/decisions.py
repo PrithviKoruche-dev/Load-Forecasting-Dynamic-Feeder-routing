@@ -8,6 +8,15 @@ into operations on the (simulated) network, according to the operating mode:
     recommend  a recommendation is proposed; it is applied only when the operator approves it
     auto       safe recommendations are applied immediately (simulated automatic operation)
 
+Recommendation kinds:
+    reroute         a configuration that brings every transformer under the threshold
+    restore         loads are back under the threshold in the normal configuration: return to it
+    mitigate        no configuration reaches the threshold, but a better one than the present exists that
+                    respects every hard limit (e.g. T4 122% -> 97%): offered as a mitigation, never as a fix
+    no_change       the network is already in the recommended configuration
+    no_action       nothing is overloaded
+    no_safe_option  nothing reaches the threshold and nothing safer than the present configuration exists
+
 Emergency stop halts automation at once: the mode drops to monitor, any pending recommendation is
 cancelled and approvals are refused until the stop is cleared. It deliberately does NOT switch the
 network back to normal on its own, because a blind change could itself overload a transformer; the
@@ -22,6 +31,17 @@ from risk import RiskModel, forecast_errors
 from core import config  # risk.py has already put project/ on sys.path
 
 MODES = {"monitor": "Monitor only", "recommend": "Recommend (operator approves)", "auto": "Automatic"}
+ACTIONABLE = ("reroute", "restore", "mitigate")
+
+
+def _describe(v):
+    """Short present-tense text for a limit violation from the engine."""
+    unit = {"transformer": "%", "line": "% of its rating"}.get(v["constraint"], " pu")
+    where = v["element"].upper() if v["constraint"] != "line" else f"line {v['element']}"
+    if v["constraint"].startswith("voltage"):
+        where = f"bus {v['element'].upper()}"
+    limit = f"{v['limit']:g}%" if v["constraint"] in ("transformer", "line") else f"{v['limit']:g} pu"
+    return f"{where} at {v['value']}{unit} (limit {limit})"
 
 
 class DecisionError(Exception):
@@ -54,7 +74,7 @@ class Recommendation:
 
     @property
     def actionable(self):
-        return self.kind in ("reroute", "restore")
+        return self.kind in ACTIONABLE
 
     def to_dict(self):
         return asdict(self)
@@ -96,12 +116,19 @@ class Controller:
         self._event("mode", f"Mode changed: {MODES[old]} -> {MODES[mode]}", sim_time)
 
     # ------------------------------------------------------------------ recommendations
-    def _checks(self, m, threshold):
+    def _checks(self, m, threshold, mitigation=False):
+        """Constraint checks on a target state. For a mitigation the threshold cannot be met, so each
+        transformer is checked against the hard limit and the check says so."""
         if not m:
             return []
         e = self.engine
-        out = [{"check": f"{t} loading", "value": f"{x:.1f}%", "limit": f"<= {threshold:g}% target, {e.hard_limit:g}% max",
-                "ok": x <= threshold} for t, x in m["loading_by_tx"].items()]
+        if mitigation:
+            out = [{"check": f"{t} loading", "value": f"{x:.1f}%",
+                    "limit": f"<= {e.hard_limit:g}% max ({threshold:g}% target not reachable)" if x > threshold
+                    else f"<= {threshold:g}% target", "ok": x <= e.hard_limit} for t, x in m["loading_by_tx"].items()]
+        else:
+            out = [{"check": f"{t} loading", "value": f"{x:.1f}%", "limit": f"<= {threshold:g}% target, {e.hard_limit:g}% max",
+                    "ok": x <= threshold} for t, x in m["loading_by_tx"].items()]
         out += [{"check": "lowest bus voltage", "value": f"{m['min_voltage_pu']:.4f} pu ({m.get('min_voltage_bus', '')})",
                  "limit": f">= {e.v_min:g} pu", "ok": m["min_voltage_pu"] >= e.v_min},
                 {"check": "highest bus voltage", "value": f"{m['max_voltage_pu']:.4f} pu", "limit": f"<= {e.v_max:g} pu",
@@ -120,9 +147,12 @@ class Controller:
         thr = e.threshold if threshold is None else threshold
         r = e.evaluate_and_reroute(loads_kw, thr, use_mv)
         before = r["before"]
+        conf_limit = thr
+        cur_viol = r.get("violations_before", [])
         if self.active and before is not None:          # what is actually in force now
             cur = e.evaluate_configuration(loads_kw, self.active)
             before = cur["metrics"] or before
+            cur_viol = cur["violations"] if cur["metrics"] else cur_viol
         if r["status"] == "rerouted":
             target = r["target"]
             if sorted(target) == sorted(self.active):
@@ -144,17 +174,38 @@ class Controller:
             target, after = list(self.active), r["after"]
             kind = "no_safe_option"
             summary = "No safe switching configuration brings every transformer under the threshold."
+            best = r.get("best_partial_target")
+            if best is not None and before is not None:
+                if sorted(best) != sorted(self.active):
+                    cand = e.evaluate_configuration(loads_kw, best)
+                    if cand["ok"] and self._safer(cand["metrics"], before):
+                        kind, target, after, conf_limit = "mitigate", list(best), cand["metrics"], e.hard_limit
+                        still = [t for t, x in after["loading_by_tx"].items() if x > thr]
+                        how = ("switch to: " + "; ".join(e.resolve(k).label for k in best) if best
+                               else "return to the normal configuration")
+                        removes = "; ".join(_describe(v) for v in cur_viol)
+                        summary = (f"Mitigation, not a full fix: {how}. " + (f"Removes the hard-limit violation{'s' if len(cur_viol) > 1 else ''}: {removes}. " if removes else "")
+                                   + f"Peak loading {before['max_loading']:.1f}% -> "
+                                   f"{after['max_loading']:.1f}% with every hard limit respected; "
+                                   f"{', '.join(still)} remain{'s' if len(still) == 1 else ''} above {thr:g}%.")
+                elif self.active:
+                    summary += " The best available configuration (a mitigation) is already in force."
+            normal = r["before"]
+            if kind == "no_safe_option" and self.active and normal["max_loading"] < before["max_loading"] - e.min_improvement:
+                summary += (f" The normal configuration would be less overloaded (peak {normal['max_loading']:.1f}% "
+                            f"instead of {before['max_loading']:.1f}%): consider resetting the switches.")
         self._seq += 1
         rec = Recommendation(
             rec_id=f"REC-{self._seq:04d}", created_at=self._now(), for_time=str(for_time), context=context,
-            kind=kind, status="pending" if kind in ("reroute", "restore") else "info", summary=summary,
+            kind=kind, status="pending" if kind in ACTIONABLE else "info", summary=summary,
             threshold=thr, from_config=list(self.active), target=list(target),
-            plan=e.switch_plan(self.active, target) if kind in ("reroute", "restore") else [],
+            plan=e.switch_plan(self.active, target) if kind in ACTIONABLE else [],
             before=before, after=after,
-            checks=self._checks(after, thr) if kind in ("reroute", "restore", "no_change") else [],
+            checks=self._checks(after, thr, mitigation=kind == "mitigate")
+            if kind in ACTIONABLE + ("no_change",) else [],
             losses_before_kw=(before or {}).get("losses_kw"), losses_after_kw=(after or {}).get("losses_kw"),
-            confidence=self.risk.confidence((after or {}).get("loading_by_tx"), self.error_by_tx, thr)
-            if kind in ("reroute", "restore", "no_change") else None,
+            confidence=self._confidence((after or {}).get("loading_by_tx"), conf_limit, kind)
+            if kind in ACTIONABLE + ("no_change",) else None,
             candidates=r["candidates"], binding=r["binding"], engine_status=r["status"], compute_s=r["compute_s"])
         self.last = rec
         self._supersede(f"replaced by {rec.rec_id}")          # a newer assessment replaces any older proposal
@@ -166,6 +217,19 @@ class Controller:
         elif kind == "no_safe_option":
             self._event("no_safe_option", f"{rec.rec_id}: {summary} " + " ".join(rec.binding[:1]), for_time, rec.rec_id)
         return rec
+
+    def _safer(self, new, current):
+        """True if `new` (which respects every hard limit) is safer than `current`: either `current` breaks a
+        hard limit, or `new` lowers the peak loading by at least the engine's minimum improvement."""
+        e = self.engine
+        return not e.is_feasible(current) or new["max_loading"] < current["max_loading"] - e.min_improvement
+
+    def _confidence(self, loading, limit, kind):
+        c = self.risk.confidence(loading, self.error_by_tx, limit)
+        if c and kind == "mitigate":
+            c["basis"] = (f"probability that every transformer stays at or below the {limit:g}% hard limit, given "
+                          "the forecast's test-period error for each transformer (the threshold cannot be met)")
+        return c
 
     def _supersede(self, why):
         if self.pending is not None and self.pending.status == "pending":

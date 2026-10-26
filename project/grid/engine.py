@@ -426,7 +426,7 @@ class GridEngine:
         if not self.solve():
             logger.warning("base case did not converge for loads %s", loads_kw)
             log.append("Base case did not converge: load level is unrealistic.")
-            return result("no_safe_option", before=None, after=None, best_partial=[],
+            return result("no_safe_option", before=None, after=None, best_partial=[], best_partial_target=[],
                           binding=["The power flow does not converge at this load level, so no switching state can be checked."])
         before = self.measure()
         before_detail = self.detail()
@@ -527,7 +527,8 @@ class GridEngine:
                    + (" Best partial: " + "; ".join(labels) if labels else ""))
         logger.debug("no safe option: peak %.1f%%, overloaded %s, best partial %s",
                      before["max_loading"], overloaded, labels)
-        return result("no_safe_option", best_partial=labels, before=packed_before, after=self._pack(current),
+        return result("no_safe_option", best_partial=labels, best_partial_target=partial,
+                      before=packed_before, after=self._pack(current),
                       overloaded=overloaded, violations_before=viol_before, binding=binding)
 
     @staticmethod
@@ -553,10 +554,11 @@ class GridEngine:
                 r["reason"] = f"safe: {peak}{better}"
 
     def _binding(self, before, current, records, threshold, overloaded, other_viol):
-        """Plain-language reasons why no safe configuration exists: for each transformer still above the
-        threshold, what happens when its own block b is moved."""
+        """Plain-language reasons why no safe configuration exists: for each transformer that was above the
+        threshold BEFORE switching and still is in the best configuration found, what happens when its own
+        block b is moved. (Transformers pushed over only by the best partial moves are not the cause.)"""
         out = []
-        still = [t for t, x in current["loading_by_tx"].items() if x > threshold] or overloaded
+        still = [t for t in overloaded if current["loading_by_tx"][t] > threshold] or overloaded
         first_round = [r for r in records if r["round"] == 1 and r["kind"] == "single"]
         pct = round(100 * self.movable_fraction)
         for t in sorted(still, key=lambda t: -before["loading_by_tx"][t]):

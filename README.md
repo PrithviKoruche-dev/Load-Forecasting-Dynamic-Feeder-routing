@@ -246,6 +246,17 @@ The platform was subjected to extensive validation over **1,073 continuous test 
 
 ¹ The peak columns average over overload hours only, and S1 has none. Across all S1 hours the highest transformer loading averages 32.7% (maximum 56.3%). Decision latency is machine-dependent; the figures above are from the original development laptop.
 
+### Mitigation When No Complete Fix Exists
+
+When no configuration brings every transformer under the threshold, the engine's best partial configuration is still offered, as a **mitigation**, if it respects every hard limit and is safer than the present one (it removes a hard-limit violation or lowers the peak). It is always labelled "Mitigation, not a full fix" and names what it removes and what stays above the threshold; it is never reported as a successful reroute. From `docs/results_mitigation.csv`:
+
+| Scenario | No Safe Option (hours) | Mitigation Available | Removes a Transformer Overload > 100% | Mean Peak Before → After (mitigated hours) |
+|:---|:---:|:---:|:---:|:---:|
+| **S4 Severe Stress** | 280 | 128 | 74 | 104.2% → 91.0% |
+| **S5 Edge Case** | 494 | 168 | 168 | 115.5% → 91.9% |
+
+S1–S3 have no such hours. In recommend mode the operator approves a mitigation like any other recommendation; in automatic mode it is applied by itself, since it only moves the network to a state that respects every hard limit. Its confidence is the probability that every transformer stays under the 100% hard limit.
+
 ### Worst-Hour Stress Analysis
 
 | Scenario | Worst Timestamp | Engine Status | Peak Before (%) | Peak After (%) | Min Voltage Before (pu) | Min Voltage After (pu) |
@@ -272,6 +283,7 @@ The project includes an operator-grade web console built with **Streamlit** and 
 5. **Day-Ahead Overload Scanning Matrix:** which transformer overloads first, for how many hours, and how badly (`CRITICAL` above 100%, `WARNING` above the threshold).
 6. **Decision Support** (depends on the operating mode chosen in the sidebar):
    - *Monitor only:* risks and alerts, no switching proposed.
+   - Recommendation kinds: *reroute* (fixes every overload), *restore* (back to normal once loads fall), *mitigate* (no full fix exists; a safer configuration that respects every hard limit), *no safe option* (nothing safer exists; the binding constraint is explained).
    - *Recommend:* **Get recommendation** produces a recommendation (ID, summary, numbered switching plan with switch IDs, before/after loading, losses, lowest voltage, confidence, constraint checks, every candidate and why it was rejected). **Approve** applies it; **Reject** discards it. A recommendation computed for another hour or scenario cannot be approved.
    - *Automatic:* every change of time or settings is assessed and safe reconfigurations (or a return to normal) are applied by themselves.
    - **EMERGENCY STOP** halts automation at once (mode drops to monitor-only, pending proposals are cancelled) and leaves the switches as they are; **Roll back last change** and **Reset to normal configuration** remain available to the operator.
@@ -361,6 +373,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── metrics.csv            # Comprehensive model accuracy metrics
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
     │   ├── results_worst_hour.csv # Worst-hour peak reduction analysis
+    │   ├── results_mitigation.csv # Hours with no full fix where a safe mitigation exists
+    │   ├── archive/               # Superseded result tables, with an explanation
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
     ├── tests/                     # Automated pytest suite (see "Running the Tests")
     │   ├── test_golden_results.py # Reproduces docs/results.csv and docs/metrics.csv exactly

@@ -407,7 +407,7 @@ with b:
     if rec is not None and rec.kind != "no_action":
         st.markdown(f"**{rec.rec_id}** for {rec.for_time} &nbsp;·&nbsp; `{rec.kind}` &nbsp;·&nbsp; status `{rec.status}`"
                     + (f" &nbsp;·&nbsp; {rec.compute_s} s" if rec.compute_s is not None else ""))
-        {"no_safe_option": st.error, "no_change": st.success}.get(rec.kind, st.info)(rec.summary)
+        {"no_safe_option": st.error, "no_change": st.success, "mitigate": st.warning}.get(rec.kind, st.info)(rec.summary)
         for line in rec.binding:
             st.write("- " + line)
         if rec.plan:

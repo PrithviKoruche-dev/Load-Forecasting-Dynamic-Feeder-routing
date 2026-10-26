@@ -1,0 +1,6 @@
+scenario,no_safe_option_hours,mitigation_available,removes_transformer_over_100%,mean_peak_before_% (mitigated),mean_peak_after_% (mitigated)
+S1 Normal day,0,0,0,,
+S2 Heatwave (T1-T3 x1.6),0,0,0,,
+"S3 EV surge (T4 +200 kW, 18-22 h)",0,0,0,,
+S4 Severe stress (all x2.5),280,128,74,104.2,91.0
+S5 Edge case (T3 x4),494,168,168,115.5,91.9

@@ -25,12 +25,12 @@ def roundtrip(df):
 
 @pytest.fixture(scope="module")
 def benchmark():
-    return run_results.run_all()
+    return run_results.run_all(with_mitigation=True)
 
 
 @pytest.mark.slow
 def test_scenario_summary_matches_docs(benchmark, project_root):
-    summary, _ = benchmark
+    summary = benchmark[0]
     expected = pd.read_csv(project_root / "docs" / "results.csv").drop(columns=TIMING)
     got = roundtrip(summary).drop(columns=TIMING)
     pd.testing.assert_frame_equal(got, expected)
@@ -38,7 +38,7 @@ def test_scenario_summary_matches_docs(benchmark, project_root):
 
 @pytest.mark.slow
 def test_worst_hours_match_docs(benchmark, project_root):
-    _, worst = benchmark
+    worst = benchmark[1]
     expected = pd.read_csv(project_root / "docs" / "results_worst_hour.csv")
     pd.testing.assert_frame_equal(roundtrip(worst), expected)
 
@@ -46,8 +46,14 @@ def test_worst_hours_match_docs(benchmark, project_root):
 @pytest.mark.slow
 def test_reroute_is_fast(benchmark):
     """Loose sanity bound: about 5-10 ms per decision on a laptop, so 0.25 s means something broke."""
-    summary, _ = benchmark
+    summary = benchmark[0]
     assert (summary["max_time_s"] < 0.25).all()
+
+
+@pytest.mark.slow
+def test_mitigation_table_matches_docs(benchmark, project_root):
+    expected = pd.read_csv(project_root / "docs" / "results_mitigation.csv")
+    pd.testing.assert_frame_equal(roundtrip(benchmark[2]), expected)
 
 
 def test_forecast_metrics_match_docs(project_root):

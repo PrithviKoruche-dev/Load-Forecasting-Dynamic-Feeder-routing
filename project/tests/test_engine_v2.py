@@ -190,3 +190,24 @@ def test_only_an_mv_transfer_can_fix_it(weak_feeder_engine):
 
 def test_mv_transfers_are_off_for_the_published_benchmark():
     assert config.operations()["rerouting"]["use_mv_transfers"] is False
+
+
+def test_binding_names_only_transformers_overloaded_before_switching(bench_loads):
+    """Regression (seen on the dashboard): S4 at 29 Feb 21:00 used to also blame T5, which is only over the
+    threshold because T4's block was moved onto it in the best partial configuration."""
+    r = e.evaluate_and_reroute(bench_loads("S4", "2020-02-29 21:00"))
+    assert r["status"] == "no_safe_option" and r["overloaded"] == ["T4"]
+    assert r["binding"] == ["T4 (122.2%): moving its block b to T5 only brings it to 97.2%, still above 85% "
+                            "(only 20% of its load is movable)."]
+    assert r["best_partial_target"] == ["T4>T5"]
+
+
+def test_mitigation_that_removes_a_line_overload(weak_feeder_engine):
+    """No configuration gets T1-T3 under 85%, but MV1 removes the 113.6% overload on cable A1. The peak does
+    not change, yet the configuration is safer, so it is offered as a mitigation that says what it fixes."""
+    from decisions import Controller
+    ctl = Controller(weak_feeder_engine, error_by_tx={})
+    rec = ctl.recommend(feeder_a_heavy(400.0), "t", "weak feeder", use_mv=True)
+    assert rec.kind == "mitigate" and rec.target == ["MV1"]
+    assert "Removes the hard-limit violation: line A1 at 113.6% of its rating (limit 100%)" in rec.summary
+    assert rec.before["max_loading"] == rec.after["max_loading"]
