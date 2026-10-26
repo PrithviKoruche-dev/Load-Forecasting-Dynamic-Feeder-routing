@@ -46,8 +46,10 @@ def test_assets_are_synced_from_config(store):
     assert len(store.assets()) == 24
 
 
-def test_database_url_from_environment(monkeypatch, tmp_path):
-    assert config.database_url().endswith("data/twin.db")          # default, inside project/
+def test_database_url_from_environment(monkeypatch, tmp_path, project_root):
+    default = config.database_url()
+    assert default == "sqlite:///" + (project_root / "data" / "twin.db").as_posix()   # forward slashes everywhere
+    assert "\\" not in default
     monkeypatch.setenv("LFDR_DB_URL", f"sqlite:///{tmp_path / 'x.db'}")
     assert config.database_url() == f"sqlite:///{tmp_path / 'x.db'}"
     monkeypatch.setenv("LFDR_DB_URL", "postgresql+psycopg://u:p@localhost/feeder")
@@ -202,3 +204,10 @@ def test_state_is_saved_the_moment_a_plan_is_applied(store, loads):
     assert Controller(e._default, store=Store(store.url)).active == ["T4>T5"]
     c1.rollback(T)
     assert Controller(e._default, store=Store(store.url)).active == []
+
+
+def test_database_folder_is_created(tmp_path):
+    """The folder of a SQLite file is created if missing (worked only for Linux-style paths before)."""
+    target = tmp_path / "new" / "deeper" / "x.db"
+    Store("sqlite:///" + target.as_posix())
+    assert target.exists()

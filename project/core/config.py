@@ -289,6 +289,8 @@ def database_url():
     A relative SQLite path is resolved inside the project/ folder."""
     url = os.environ.get("LFDR_DB_URL") or storage()["url"]
     prefix = "sqlite:///"
-    if url.startswith(prefix) and not url.startswith(prefix + "/") and url != prefix + ":memory:":
-        url = prefix + str(PROJECT_ROOT / url[len(prefix):])
+    path = url[len(prefix):]
+    if url.startswith(prefix) and path != ":memory:" and not Path(path).is_absolute() and not path.startswith("/"):
+        # forward slashes on every platform (SQLAlchemy accepts sqlite:///C:/... on Windows)
+        url = prefix + (PROJECT_ROOT / path).as_posix()
     return url

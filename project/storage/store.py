@@ -42,8 +42,9 @@ class Store:
         kwargs = {"future": True}
         if self.url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
-            if self.url.startswith("sqlite:////"):
-                Path(self.url[len("sqlite:///"):]).parent.mkdir(parents=True, exist_ok=True)
+            path = self.url[len("sqlite:///"):]
+            if self.url.startswith("sqlite:///") and path and path != ":memory:":
+                Path(path).parent.mkdir(parents=True, exist_ok=True)      # Linux /..., Windows C:/... or C:\...
         self.engine = create_engine(self.url, **kwargs)
         if self.engine.dialect.name == "sqlite":
             event.listen(self.engine, "connect", _sqlite_pragmas)
