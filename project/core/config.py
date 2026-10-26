@@ -38,7 +38,7 @@ def config_dir():
 def reload():
     """Forget cached files (after changing LFDR_CONFIG_DIR or editing a file at runtime)."""
     _read.cache_clear()
-    for fn in (grid, operations, scenarios, forecasting):
+    for fn in (grid, operations, scenarios, forecasting, storage):
         fn.cache_clear()
 
 
@@ -268,3 +268,27 @@ def forecasting():
     _get(c, f, "model", "xgboost")
     _number(c, f, "scaling", "target_peak_kw", low=0, low_open=True)
     return c
+
+
+@lru_cache(maxsize=None)
+def storage():
+    f = "storage"
+    c = _read(f)
+    _need(isinstance(_get(c, f, "url"), str) and "://" in c["url"], f, "url must be a database URL like sqlite:///data/twin.db")
+    _number(c, f, "batch_size", low=1)
+    for k in ("measurements_days", "alerts_days"):
+        _number(c, f, "retention", k, low=0)
+    _need(isinstance(_get(c, f, "forecast_import", "model_version"), str), f, "forecast_import.model_version is required")
+    _need(isinstance(_get(c, f, "forecast_import", "measurement_source"), str), f,
+          "forecast_import.measurement_source is required")
+    return c
+
+
+def database_url():
+    """The database URL: LFDR_DB_URL if set (read on every call, so tests can switch it), else storage.yaml.
+    A relative SQLite path is resolved inside the project/ folder."""
+    url = os.environ.get("LFDR_DB_URL") or storage()["url"]
+    prefix = "sqlite:///"
+    if url.startswith(prefix) and not url.startswith(prefix + "/") and url != prefix + ":memory:":
+        url = prefix + str(PROJECT_ROOT / url[len(prefix):])
+    return url

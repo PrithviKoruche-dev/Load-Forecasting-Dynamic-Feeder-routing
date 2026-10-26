@@ -8,12 +8,24 @@ from streamlit.testing.v1 import AppTest
 S3_WORST = dt.datetime(2020, 2, 29, 21, 0)
 
 
-@pytest.fixture
-def app(project_root):
+def start(project_root):
     at = AppTest.from_file(str(project_root / "app" / "app.py"), default_timeout=120)
     at.run()
     assert not at.exception, at.exception
     return at
+
+
+@pytest.fixture
+def db(tmp_path, monkeypatch):
+    """Every test gets its own throwaway database (never the real data/twin.db)."""
+    url = f"sqlite:///{tmp_path / 'test.db'}"
+    monkeypatch.setenv("LFDR_DB_URL", url)
+    return url
+
+
+@pytest.fixture
+def app(project_root, db):
+    return start(project_root)
 
 
 def metric(at, label):
@@ -132,3 +144,64 @@ def test_mitigation_from_the_dashboard(app):
     assert any(w.value.startswith("Mitigation, not a full fix") for w in app.warning)
     click(app, "Approve")
     assert ctl(app).active == ["T4>T5"] and metric(app, "Peak loading") == "97.1 %"
+
+
+# ------------------------------------------------------------------ persistence (Phase 3)
+def test_state_survives_a_restart(project_root, db):
+    """Approve, leave a recommendation pending, 'restart' the dashboard: everything is still there."""
+    import streamlit as st
+    at = start(project_root)
+    ev_worst_hour(at)
+    click(at, "Get recommendation")
+    click(at, "Approve")                                       # T4>T5 in force
+    at.selectbox(key="scenario").set_value("Severe stress").run()
+    click(at, "Reset to normal configuration")
+    click(at, "Get recommendation")                            # a mitigation, left pending
+    pending = ctl(at).pending.rec_id
+    n_events = len(ctl(at).history)
+
+    st.cache_resource.clear()                                  # what a restart does to the process' objects
+    at2 = start(project_root)
+    c = ctl(at2)
+    assert c is not ctl(at)                                    # really a new controller...
+    assert c.active == [] and c.pending.rec_id == pending      # ...with the same state
+    assert len(c.history) == n_events
+    events_table = next(d for d in at2.dataframe if "event" in d.value.columns)
+    assert {"recommendation", "approved", "applied", "manual"} <= set(events_table.value["event"])
+
+
+def test_audit_log_filters(app):
+    ev_worst_hour(app)
+    click(app, "Get recommendation")
+    click(app, "Approve")
+    log = lambda: next(d for d in app.dataframe if "event" in d.value.columns).value  # noqa: E731
+    assert len(log()) == 3
+    app.selectbox(key="log_tx").set_value("T1").run()
+    assert not any("event" in d.value.columns for d in app.dataframe)      # nothing concerns T1
+    app.selectbox(key="log_tx").set_value("T4").run()
+    assert len(log()) == 3
+    app.multiselect(key="log_types").set_value(["applied"]).run()
+    assert log()["event"].tolist() == ["applied"]
+
+
+def test_each_event_is_logged_once(app):
+    """Regression: switching to automatic mode at an hour that needs no action wrote 'Mode changed' to
+    logs/dashboard.log twice (the assessment re-logged the previous event)."""
+    import logging
+
+    class Grab(logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.messages = []
+
+        def emit(self, record):
+            self.messages.append(record.getMessage())
+
+    grab = Grab()
+    logger = logging.getLogger("lfdr.dashboard")
+    logger.addHandler(grab)
+    try:
+        app.radio(key="mode_widget").set_value("auto").run()
+    finally:
+        logger.removeHandler(grab)
+    assert sum("Mode changed" in m for m in grab.messages) == 1

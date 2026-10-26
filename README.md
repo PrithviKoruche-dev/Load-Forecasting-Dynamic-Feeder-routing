@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **Final Year Engineering Capstone Project**  
-> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) load transfers**, with optional **medium-voltage (MV) feeder transfers** over the normally open tie `TIE1`. Every switching proposal is checked by AC power flow, explained, and applied according to an operating mode (monitor, recommend-and-approve, or automatic).
+> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) load transfers**, with optional **medium-voltage (MV) feeder transfers** over the normally open tie `TIE1`. Every switching proposal is checked by AC power flow, explained, applied according to an operating mode (monitor, recommend-and-approve, or automatic), and recorded in a database that survives restarts.
 
 ---
 
@@ -74,6 +74,11 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - Three operating modes: monitor-only, recommend (operator approves), automatic; emergency stop, rollback and an action log.
   - Structured recommendations: ID, numbered switching plan with switch IDs, before/after, losses, constraint checks and a confidence level.
   - Thread-isolated worker thread architecture preventing C-extension race conditions.
+
+- **🗄 Persistent Storage (SQLite, PostgreSQL optional):**
+  - Forecasts, measured loads, every recommendation with all its candidates, every switch operation, alerts and the full event log are stored in a database.
+  - The controller's mode, switch configuration, emergency stop, undo stack and pending recommendation survive a restart; a recommendation left pending can still be approved afterwards.
+  - Filterable audit log (by day, transformer, event type and severity).
 
 - **🔬 Comprehensive Scenario Verification:**
   - Validated across **1,073 continuous test hours** across 5 distinct operational scenarios: Normal Day, Feeder A Heatwave, EV Evening Surge, Severe Multi-Feeder Stress, and Extreme Single-Transformer Overload.
@@ -288,7 +293,7 @@ The project includes an operator-grade web console built with **Streamlit** and 
    - *Automatic:* every change of time or settings is assessed and safe reconfigurations (or a return to normal) are applied by themselves.
    - **EMERGENCY STOP** halts automation at once (mode drops to monitor-only, pending proposals are cancelled) and leaves the switches as they are; **Roll back last change** and **Reset to normal configuration** remain available to the operator.
 7. **Manual switching** of any LV move (and MV transfer when enabled); unsafe configurations (loops, unsupplied loads) are refused.
-8. **Action log** of every recommendation, approval, rejection, switching operation, rollback and emergency stop.
+8. **Audit log** (from the database, so it survives restarts), in four tabs: *Events* (filter by simulated day, transformer, event type and severity), *Recommendations* (with the candidates of any one), *Switching operations* and *Alerts*.
 
 ---
 
@@ -303,6 +308,7 @@ Every setting that used to be a constant in the code now lives in one of four YA
 | `operations.yaml` | 85% overload threshold, 100% hard limit, 0.95–1.05 pu voltage band, line limit, greedy stop rule, dashboard slider range and colour bands |
 | `scenarios.yaml` | Benchmark S1–S5, the quick flat-load scenarios and the dashboard presets — defined once |
 | `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target |
+| `storage.yaml` | Database URL (SQLite file by default), batch size, retention, labels for the imported forecasts |
 
 `network.dss` still holds the electrical model that OpenDSS solves; tests check that `grid.yaml` agrees with it (transformers, ratings, buses, loads, switch states and the buses each move connects). Set `LFDR_CONFIG_DIR` to point the whole project at another config folder.
 
@@ -320,6 +326,22 @@ Assets carry IDs in the research specification's scheme, while the short names s
 | Meters | `MTR-00001` … | one per household kept by `prepare_data.py` |
 
 `core/ids.py` provides the registry and conversions. The forecast files carry an `asset_id` column, and `prepare_data.py` writes `data/processed/meter_registry.csv`, linking every household's meter ID to its transformer.
+
+### Database
+On first start the dashboard creates `project/data/twin.db` (SQLite), imports `data/forecast.csv` (forecasts and measured loads) and, if present, `data/processed/meter_registry.csv`, then restores the controller from it. To start from a clean history, stop the dashboard and delete `data/twin.db`. The file is local and gitignored.
+
+| Table | Holds |
+|:---|:---|
+| `assets`, `meters` | Network assets and the meter registry, with their IDs |
+| `forecasts`, `measurements` | Forecasts per model version and horizon; measured loads per source, with a quality flag |
+| `recommendations`, `candidates` | Every recommendation (plan, before/after, checks, losses, confidence, binding constraint) and every option evaluated for it |
+| `actions` | Every switch operation executed: who/what triggered it (operator, auto, manual, rollback, reset) |
+| `events`, `event_assets` | The audit log with severity, and which transformers and switches each event concerns |
+| `alerts` | Risk and voltage/line alerts as they were observed |
+| `controller_state` | Mode, configuration, emergency stop and undo stack |
+| `model_registry` | Forecasting model versions (used from Phase 4) |
+
+To use PostgreSQL instead, set `url` in `config/storage.yaml` (or the `LFDR_DB_URL` environment variable) to e.g. `postgresql+psycopg://user:password@localhost:5432/feeder` and `pip install "psycopg[binary]"`. The code uses SQLAlchemy Core and dialect-aware inserts, so nothing else changes.
 
 ### Logging
 `core/logging_setup.py` gives every module the same log format. Set `LFDR_LOG_LEVEL=DEBUG` to see each rerouting decision, or `LFDR_LOG_FILE=path` to also write a file. The dashboard always writes `logs/dashboard.log`.
@@ -339,7 +361,11 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── grid.yaml              # Assets, IDs, ratings, switches, movable-load scheme
     │   ├── operations.yaml        # Overload threshold, voltage/line limits, dashboard bands
     │   ├── scenarios.yaml         # Benchmark, quick and dashboard scenarios (defined once)
-    │   └── forecasting.yaml       # Data window, cleaning rules, clusters, split, model settings
+    │   ├── forecasting.yaml       # Data window, cleaning rules, clusters, split, model settings
+    │   └── storage.yaml           # Database URL, batch size, retention
+    ├── storage/                   # Database layer
+    │   ├── schema.py              # Tables (SQLAlchemy Core; SQLite or PostgreSQL)
+    │   └── store.py               # Store: every read and write of the database
     ├── core/                      # Shared building blocks used by every module
     │   ├── config.py              # Loads and validates config/*.yaml
     │   ├── ids.py                 # Asset ID registry (SUB-001, FD-001, DT-001, SW-001, MTR-00001)
@@ -368,7 +394,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── processed/             # clusters.parquet, meter_registry.csv (not in the repository)
     │   ├── forecast.csv           # Final held-out test predictions (interface contract)
     │   ├── forecast_all.csv       # Complete train/val/test predictions
-    │   └── scale_factors.json     # Normalization & grid scaling parameters
+    │   ├── scale_factors.json     # Normalization & grid scaling parameters
+    │   └── twin.db                # Local database, created on first run (not in the repository)
     ├── docs/                      # Documentation artifacts & figures
     │   ├── metrics.csv            # Comprehensive model accuracy metrics
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
@@ -386,7 +413,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_engine_v2.py      # Candidates, reasons, binding constraints, losses, P/Q/S, feeders, MV transfers
     │   ├── test_risk.py           # Risk classes, alerts, confidence
     │   ├── test_decisions.py      # Modes, approval, stale proposals, rollback, emergency stop
-    │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto
+    │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto, restart
+    │   ├── test_storage.py        # Schema, imports, filters, batching, retention, restart restores everything
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   └── test_artifacts.py      # Forecast files, scale factors, model and config agree
     ├── scripts/                   # Helper scripts, not part of the pipeline

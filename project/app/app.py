@@ -2,8 +2,12 @@
 
 Scenario presets and slider ranges come from config/scenarios.yaml, limits, risk bands and the default
 operating mode from config/operations.yaml. Decisions go through grid/decisions.py (operating modes,
-approval, rollback, emergency stop); every event is shown in the action log and written to
-logs/dashboard.log.
+approval, rollback, emergency stop).
+
+Storage (Phase 3): forecasts and measured loads are read from the database (config/storage.yaml, or
+LFDR_DB_URL), and one controller per dashboard process is restored from it, so the configuration, a pending
+recommendation and the whole audit log survive a restart. Every browser session shares that controller.
+Operator actions are also written to logs/dashboard.log.
 """
 import faulthandler
 import importlib
@@ -58,8 +62,26 @@ def dss(fn, *args):
 
 
 
-from decisions import MODES, Controller, DecisionError  # noqa: E402  (no OpenDSS import inside)
+from decisions import MODES, SEVERITY, Controller, DecisionError  # noqa: E402  (no OpenDSS import inside)
 from risk import LABELS as RISK_LABELS, RiskModel  # noqa: E402
+from storage import Store  # noqa: E402
+from core import ids  # noqa: E402
+
+
+@st.cache_resource
+def services(db_url):
+    """The database and the one controller of this dashboard process, restored from the database.
+    Built on the OpenDSS thread because restoring may need to load the network."""
+    store = Store(db_url)
+    store.import_forecast_csv(ROOT / "data" / "forecast.csv")
+    store.import_meter_registry(ROOT / "data" / "processed" / "meter_registry.csv")
+    ctl = EXEC.submit(lambda: Controller(e._default, store=store)).result()
+    log.info("database %s ready: %s", db_url, {k: v for k, v in store.counts().items() if v})
+    return store, ctl
+
+
+DB_URL = config.database_url()
+STORE, CTL = services(DB_URL)
 
 
 def _kw_calc(threshold):
@@ -86,9 +108,7 @@ DEFAULTS.update({"thr": int(_OPS["limits"]["overload_threshold_pct"]),
                  "use_mv": bool(_OPS["rerouting"]["use_mv_transfers"])})
 for k, v in DEFAULTS.items():
     st.session_state.setdefault(k, v)
-if "ctl" not in st.session_state:
-    st.session_state["ctl"] = Controller(e._default)
-CTL = st.session_state["ctl"]
+st.session_state["ctl"] = CTL
 st.session_state.setdefault("flash", None)
 st.session_state.setdefault("auto_key", None)
 # widgets that mirror controller state are refreshed from it on every run
@@ -98,8 +118,9 @@ st.session_state["moves"] = list(CTL.active)
 
 # ------------------------------------------------------------------ data
 @st.cache_data
-def load_forecast():
-    fc = pd.read_csv(ROOT / "data" / "forecast.csv", parse_dates=["timestamp"])
+def load_forecast(db_url):
+    """Forecasts and measured loads from the database (same shape as data/forecast.csv)."""
+    fc = STORE.forecast_frame()
     return (fc, fc.pivot(index="timestamp", columns="transformer_id", values="predicted_kw"),
             fc.pivot(index="timestamp", columns="transformer_id", values="actual_kw"))
 
@@ -119,7 +140,7 @@ def kw_at_limit(threshold):
     return dss(_kw_calc, threshold)
 
 
-fc, pred, actual = load_forecast()
+fc, pred, actual = load_forecast(DB_URL)
 
 
 def params():
@@ -209,13 +230,16 @@ def _now_label():
 
 
 def _guard(fn, *args, ok=None):
-    """Run a controller operation; show its refusal (DecisionError) as a message instead of crashing."""
+    """Run a controller operation on the OpenDSS thread; show a refusal (DecisionError) as a message.
+    Every NEW event it produced goes to logs/dashboard.log (only new ones: an assessment that creates no
+    event must not log the previous event again)."""
+    n = len(CTL.history)
     try:
-        out = fn(*args)
+        out = dss(fn, *args)
         if ok:
             st.session_state["flash"] = ("success", ok)
-        if CTL.history:
-            log.info(CTL.history[-1]["message"])
+        for ev in CTL.history[n:]:
+            log.info(ev["message"])
         return out
     except DecisionError as ex:
         st.session_state["flash"] = ("error", str(ex))
@@ -241,7 +265,7 @@ def on_manual():
 def do_recommend():
     s = st.session_state
     t = pd.Timestamp(s["t"])
-    rec = _guard(dss, CTL.recommend, loads_at(t, params()), _now_label(), context(), float(s["thr"]), s["use_mv"])
+    rec = _guard(CTL.recommend, loads_at(t, params()), _now_label(), context(), float(s["thr"]), s["use_mv"])
     if rec is not None and rec.kind in ("no_action", "no_change"):
         s["flash"] = ("success", rec.summary)
 
@@ -312,7 +336,7 @@ if CTL.mode == "auto" and not CTL.estopped:
     key = (_now_label(), context())
     if st.session_state["auto_key"] != key:                 # assess once per time step / setting change
         st.session_state["auto_key"] = key
-        _guard(dss, CTL.recommend, loads, _now_label(), context(), thr, st.session_state["use_mv"])
+        _guard(CTL.recommend, loads, _now_label(), context(), thr, st.session_state["use_mv"])
 moves = list(CTL.active)
 cur = evaluate(loads, moves)
 measured_loads = loads_at(t, p, actual) if not actual.loc[t].isna().any() else None
@@ -335,6 +359,14 @@ if cur is None:
 
 loading = cur["loading_by_tx"]
 risk = RISK.transformers(loading, measured["loading_by_tx"] if measured else None, thr)
+STORE.record_alerts(_now_label(),
+                    [{"asset": ids.transformer_id(t_), "kind": "transformer", "level": r["risk_class"],
+                      "value": max(v for v in (r["forecast_pct"], r["measured_pct"]) if v is not None),
+                      "text": f"{t_}: forecast {r['forecast_pct']}%, measured {r['measured_pct']}% ({r['risk_class']})"}
+                     for t_, r in risk.items() if r["risk_class"] != "normal"]
+                    + [{"asset": x["element"], "kind": x["type"], "level": x["level"], "value": x["value"], "text": x["text"]}
+                       for x in RISK.network_alerts(cur)],
+                    context=f"{context()} config={','.join(moves) or 'normal'}")
 n_over = sum(v > thr for v in loading.values())
 nrmse = forecast_nrmse()
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -443,9 +475,48 @@ with b:
     r1.button("Roll back last change", on_click=do_rollback, disabled=not CTL.can_rollback)
     r2.button("Reset to normal configuration", on_click=do_reset, disabled=not moves)
 
-st.subheader("Action log")
-if CTL.history:
-    st.dataframe(pd.DataFrame([{"#": h["seq"], "sim time": h["sim_time"] or "", "event": h["type"],
-                                "details": h["message"]} for h in reversed(CTL.history[-15:])]), hide_index=True)
-else:
-    st.caption("No actions yet.")
+st.subheader("Audit log")
+st.caption(f"Stored in the database ({STORE.dialect}); survives restarts. Newest first.")
+tab_ev, tab_rec, tab_sw, tab_al = st.tabs(["Events", "Recommendations", "Switching operations", "Alerts"])
+with tab_ev:
+    all_days = sorted({(ev["sim_time"] or "")[:10] for ev in STORE.events(controller=CTL.name, limit=5000)} - {""})
+    f1, f2, f3, f4 = st.columns(4)
+    day = f1.selectbox("Day (simulated)", ["All days"] + all_days, key="log_day")
+    tx_filter = f2.selectbox("Transformer", ["All"] + e.TX, key="log_tx")
+    type_filter = f3.multiselect("Event type", list(SEVERITY), key="log_types")
+    sev_filter = f4.multiselect("Severity", ["info", "warning", "critical"], key="log_sev")
+    rows = STORE.events(controller=CTL.name, sim_from=None if day == "All days" else day,
+                        sim_to=None if day == "All days" else day, types=type_filter or None,
+                        severities=sev_filter or None,
+                        asset_id=None if tx_filter == "All" else ids.transformer_id(tx_filter), limit=500)
+    if rows:
+        st.dataframe(pd.DataFrame([{"#": r["seq"], "sim time": r["sim_time"] or "", "severity": r["severity"],
+                                    "event": r["type"], "assets": ", ".join(r["assets"]), "details": r["message"]}
+                                   for r in rows]), hide_index=True)
+    else:
+        st.caption("No events match these filters.")
+with tab_rec:
+    recs = STORE.recommendations(controller=CTL.name)
+    if recs.empty:
+        st.caption("No recommendations yet.")
+    else:
+        st.dataframe(recs.rename(columns={"rec_id": "id", "for_time": "for", "losses_before_kw": "losses before kW",
+                                          "losses_after_kw": "losses after kW", "compute_s": "s"}), hide_index=True)
+        pick = st.selectbox("Candidates of", recs["rec_id"].tolist(), key="log_rec")
+        cands = STORE.candidates(pick)
+        if not cands.empty:
+            st.dataframe(cands[["cand_id", "round", "status", "label", "reason", "max_loading", "losses_kw"]],
+                         hide_index=True)
+with tab_sw:
+    acts = STORE.actions(controller=CTL.name)
+    if acts.empty:
+        st.caption("No switch has been operated yet.")
+    else:
+        st.dataframe(acts[["sim_time", "rec_id", "how", "step", "switch", "switch_id", "operation", "action_key"]],
+                     hide_index=True)
+with tab_al:
+    al = STORE.alerts(limit=500)
+    if al.empty:
+        st.caption("No alerts recorded yet.")
+    else:
+        st.dataframe(al[["sim_time", "asset", "kind", "level", "value", "text"]], hide_index=True)

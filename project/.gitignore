@@ -10,3 +10,8 @@ dss_crash.log
 
 # Runtime logs (dashboard.log, dss_crash.log)
 logs/
+
+# Local database (Phase 3) - created on first run
+data/*.db
+data/*.db-wal
+data/*.db-shm

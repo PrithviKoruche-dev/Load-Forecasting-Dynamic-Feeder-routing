@@ -1,0 +1,18 @@
+# Database settings (gap-analysis item D1).
+#
+# The default is a SQLite file inside project/data/. Any SQLAlchemy URL works, e.g. for PostgreSQL:
+#   url: postgresql+psycopg://user:password@localhost:5432/feeder
+# (and `pip install psycopg[binary]`). The environment variable LFDR_DB_URL overrides this setting;
+# the tests use it to work on a throwaway database.
+
+url: sqlite:///data/twin.db             # sqlite paths are relative to the project/ folder
+
+batch_size: 1000                        # rows per INSERT when writing measurements in bulk
+
+retention:                              # how long high-volume data is kept (days of simulated time); 0 = forever
+  measurements_days: 0                  # transformer and meter readings (meter streams arrive in Phase 8)
+  alerts_days: 0
+
+forecast_import:
+  model_version: xgb-24h-v1             # label for the committed 24-hour-ahead forecasts (data/forecast.csv)
+  measurement_source: emarc-scaled      # label for the measured loads imported from the same file
