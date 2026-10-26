@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Model files are hashed (ml/model_xgb.meta.json): keep their bytes exactly as committed
+project/ml/model_xgb.json binary

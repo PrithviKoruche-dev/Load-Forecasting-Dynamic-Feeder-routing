@@ -267,6 +267,22 @@ def forecasting():
     _need(tr + va < 1, f, "split.train + split.val must leave room for a test split")
     _get(c, f, "model", "xgboost")
     _number(c, f, "scaling", "target_peak_kw", low=0, low_open=True)
+    lo = _number(c, f, "intervals", "lower_quantile", low=0, high=1, low_open=True)
+    hi = _number(c, f, "intervals", "upper_quantile", low=0, high=1)
+    _need(lo < hi < 1, f, "intervals: lower_quantile < upper_quantile < 1")
+    _need(_get(c, f, "intervals", "method") in ("rolling", "static"), f, "intervals.method must be rolling or static")
+    _number(c, f, "intervals", "window_days", low=1)
+    hb = _number(c, f, "intervals", "hour_blocks", low=1, high=24)
+    _need(24 % hb == 0, f, "intervals.hour_blocks must divide 24")
+    _need(isinstance(_get(c, f, "intervals", "use_upper_for_risk"), bool), f, "intervals.use_upper_for_risk must be true/false")
+    _need(isinstance(_get(c, f, "v2", "model_version"), str), f, "v2.model_version is required")
+    for k in ("n_estimators", "min_samples_leaf"):
+        _number(c, f, "v2", "random_forest", k, low=1)
+    _number(c, f, "v2", "random_forest", "max_features", low=0, high=1, low_open=True)
+    qs = _get(c, f, "v2", "quantiles")
+    _need(isinstance(qs, list) and len(qs) >= 2 and qs == sorted(qs) and all(0 < q < 1 for q in qs), f,
+          "v2.quantiles must be an increasing list of numbers between 0 and 1")
+    _number(c, f, "v2", "retrain_every_days", low=1)
     return c
 
 

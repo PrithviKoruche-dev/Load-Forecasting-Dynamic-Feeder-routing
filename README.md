@@ -52,6 +52,8 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - Single unified XGBoost model serving all transformers via train-mean scaling.
   - Engineered lag series ($\ge 24\text{ h}$ to prevent data leakage), rolling statistics, and cooling degree days (CDD).
   - Outperforms persistence baselines by over **21% in nRMSE** (achieving **25.3% nRMSE** at transformer level and **10.8%** for the sum of all six transformers).
+  - P10–P90 forecast intervals by rolling conformal calibration (78.3% coverage), with peak-hour and overload-detection metrics showing why forecast risk uses the P90 bound.
+  - Versioned model metadata with a file hash, a cold-start builder, step-by-step `forecast_at(t)` and live scoring of forecasts as their hour passes.
 
 - **⚡ Physics-Based Power Flow Emulation (OpenDSS):**
   - Full AC distribution power flow simulation using `opendssdirect.py`.
@@ -210,6 +212,58 @@ MAE and RMSE are in raw cluster kW (the households' measured demand, before scal
 
 > **Aggregation Effect:** When forecasting the total demand of all six transformers, individual consumer volatility smooths out significantly: XGBoost's **nRMSE drops from 25.4% (average per transformer) to 10.8%** for the sum. The persistence baseline shows the same effect (31.6% to 14.1%), so the aggregate is easier to forecast for any method.
 
+### 4. Peak Hours (`docs/metrics_peak.csv`)
+Overloads happen at the peaks, so `evaluate.py` also scores the top 10% of hours of each transformer's actual load in the test period (648 transformer-hours):
+
+| Model | MAE (kW) | Bias (kW) | MAPE (%) |
+|:---|:---:|:---:|:---:|
+| **XGBoost (refit)** | **0.96** | **−0.91** | **20.4%** |
+| Same hour yesterday | 1.01 | −0.78 | 21.4% |
+| Same hour last week | 1.11 | −0.88 | 25.2% |
+
+At the peaks almost all of the error is **under-forecasting** (bias −0.91 kW of a 0.96 kW MAE), and the model's lead over yesterday's value shrinks to one point of MAPE. A point forecast therefore tends to arrive below the real peak, which is what the intervals below are for.
+
+### 5. Forecast Intervals (`ml/intervals.py`, `data/forecast_intervals.csv`)
+Each forecast gets a P10–P90 band from **conformal calibration**: the ratio *actual / forecast* is collected per transformer and per 6-hour block of the day, and its 10th and 90th percentiles scale the forecast. For a target hour *t* the ratios come from the last 28 days of hours whose actual value was already known when the forecast was issued (*t* − 24 h); a test checks that changing any later actual value leaves the band unchanged.
+
+| Method (test period) | Coverage of P10–P90 (target 80%) | Below P10 | Above P90 |
+|:---|:---:|:---:|:---:|
+| Static (validation-period ratios only) | 75.8% | 8.6% | 15.6% |
+| **Rolling 28 days (used)** | **78.3%** | 9.4% | 12.3% |
+
+Coverage per transformer, the pinball loss of each bound and the band width are in `docs/metrics_intervals.csv`; the static ratios are in `docs/interval_calibration.csv`. **Disclosure:** the window length was chosen by comparing 7, 14, 28 and 56 days on the test period (coverage 74.4%, 76.7%, 78.3%, 78.2%), so the 78.3% is slightly optimistic; 28 days is also the natural choice (a whole month, every weekday four times).
+
+### 6. Does the Forecast Catch Overloads? (`grid/overload_skill.py`, `docs/metrics_overload.csv`)
+For every test hour and scenario, OpenDSS is solved three times (point forecast, P90 bound, actual load) and each transformer-hour is classed as overloaded or not:
+
+| Scenario | Flag raised on | Precision | Recall |
+|:---|:---|:---:|:---:|
+| S2 Heatwave | point forecast | 100% | **12.2%** |
+| S2 Heatwave | P90 bound | 22.4% | **80.5%** |
+| S3 EV surge | point forecast | 50.0% | **18.6%** |
+| S3 EV surge | P90 bound | 35.6% | **96.6%** |
+| S4 Severe stress | point forecast | 69.1% | 57.2% |
+| S4 Severe stress | P90 bound | 43.0% | 89.7% |
+
+With the point forecast most real overloads in S2 and S3 are **missed**, a direct effect of the peak under-forecasting. Flagging on the P90 bound catches 80–97% of them at the cost of more false alarms. The dashboard therefore classes **forecast risk on the P90 loading** (`intervals.use_upper_for_risk` in `config/forecasting.yaml`); the rerouting decision itself still uses the point forecast.
+
+### 7. Model Metadata, Registry and Cold Start
+- `ml/model_xgb.meta.json` records the model version (`xgb-24h-v1`), feature list, parameters, train/validation/test windows, test metrics and the SHA-256 of `model_xgb.json`. `ml/metadata.py` refuses to load a model whose file no longer matches its metadata; the dashboard registers the model in the database's `model_registry`.
+- `python ml/cold_start.py` checks that a model, its metadata and the forecasts exist and builds whatever is missing in order (`prepare_data` → `train_xgb` → `evaluate` → `intervals`); with everything present it does nothing (`--force` retrains).
+
+### 8. Forecasting Step by Step and Scoring as Time Passes
+- `ml/forecaster.py`: `Forecaster().forecast_at(t, history)` produces the 24 h-ahead forecast for one hour from a history table, with every load after *t* − 24 h blanked before the features are built. It gives exactly the batch result (tested) and takes about 30 ms; Phase 5's orchestrator will call it every simulated hour.
+- The database stores each forecast as *pending*; `Store.score_forecasts(now)` scores the ones whose hour has passed (error = forecast − actual) and `Store.forecast_performance()` gives MAE, RMSE, nRMSE and bias per transformer so far. The dashboard does this as the replay clock moves (expander **Forecast accuracy so far**); scored to the end of the test period it reproduces `docs/metrics.csv` per transformer.
+
+### 9. Forecasting v2 Experiments (`ml/train_v2.py`)
+`train_v2.py` compares, on the same split, against the unchanged v1 model:
+- **Extra features** (`FEATURES_V2`): `ramp_1h` and `ramp_24h` (how fast the load was changing at issue time) and two asset features, `rating_kva` and `share_residential`.
+- **Random Forest** on the v2 features, as a second model family.
+- **XGBoost quantile regression** (P10/P50/P90 in one model) as an alternative to the conformal band.
+- **Weekly retraining backtest**: the test period is forecast in 7-day blocks, each by a model retrained on everything known at the block's first issue time.
+
+It writes `data/forecast_v2.csv`, `docs/metrics_v2.csv`, `metrics_v2_peak.csv`, `metrics_v2_intervals.csv`, `backtest_v2.csv`, `feature_importance_v2.csv`, and the models with their metadata in `ml/models/`. It needs `data/processed/clusters.parquet` (from the eMARC data), so these files are produced on a machine that has the data: `python ml/train_v2.py`. The v1 model, its forecasts and every published number stay as they are; v2 is adopted only if its results justify it.
+
 ---
 
 ## ⚙️ Physics-Constrained Rerouting Engine
@@ -283,8 +337,8 @@ The project includes an operator-grade web console built with **Streamlit** and 
 
 1. **Top KPI Ribbon:** overloaded transformer count, peak loading, lowest bus voltage (all buses, including the customer side), network losses, and the forecast nRMSE.
 2. **Interactive Topology Visualizer:** transformers coloured by risk class (green normal, amber elevated, orange approaching, red predicted overload, dark red measured overload); dotted grey for open switches; blue for a closed tie, a moved block or a transferred feeder section; dashed MV segments when a sectionaliser is open.
-3. **Load Forecasting Horizon Plot:** 72-hour window with actual demand, forecast, the scenario-adjusted forecast and the overload line.
-4. **Risk Now:** for every transformer, the forecast and the measured loading with their risk classes side by side, plus voltage and line alerts.
+3. **Load Forecasting Horizon Plot:** 72-hour window with actual demand, forecast, the scenario-adjusted forecast, the P10–P90 band (with the scenario applied to it too) and the overload line.
+4. **Risk Now:** for every transformer, the forecast, P90 and measured loading with their risk classes side by side (forecast risk uses the P90 loading), plus voltage and line alerts. Below it, **Forecast accuracy so far** scores the forecasts whose hour has passed.
 5. **Day-Ahead Overload Scanning Matrix:** which transformer overloads first, for how many hours, and how badly (`CRITICAL` above 100%, `WARNING` above the threshold).
 6. **Decision Support** (depends on the operating mode chosen in the sidebar):
    - *Monitor only:* risks and alerts, no switching proposed.
@@ -307,7 +361,7 @@ Every setting that used to be a constant in the code now lives in one of four YA
 | `grid.yaml` | Substation, feeders, transformers (ratings, buses, loads), switches with their normal state, the 20% movable block and the move table |
 | `operations.yaml` | 85% overload threshold, 100% hard limit, 0.95–1.05 pu voltage band, line limit, greedy stop rule, dashboard slider range and colour bands |
 | `scenarios.yaml` | Benchmark S1–S5, the quick flat-load scenarios and the dashboard presets — defined once |
-| `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target |
+| `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target, interval method and window, v2 experiment settings |
 | `storage.yaml` | Database URL (SQLite file by default), batch size, retention, labels for the imported forecasts |
 
 `network.dss` still holds the electrical model that OpenDSS solves; tests check that `grid.yaml` agrees with it (transformers, ratings, buses, loads, switch states and the buses each move connects). Set `LFDR_CONFIG_DIR` to point the whole project at another config folder.
@@ -333,13 +387,14 @@ On first start the dashboard creates `project/data/twin.db` (SQLite), imports `d
 | Table | Holds |
 |:---|:---|
 | `assets`, `meters` | Network assets and the meter registry, with their IDs |
-| `forecasts`, `measurements` | Forecasts per model version and horizon; measured loads per source, with a quality flag |
+| `forecasts`, `measurements` | Forecasts per model version and horizon (pending until scored, then with their error); measured loads per source, with a quality flag |
+| `forecast_quantiles` | Interval bounds (P10, P90) per forecast hour, model version and method |
 | `recommendations`, `candidates` | Every recommendation (plan, before/after, checks, losses, confidence, binding constraint) and every option evaluated for it |
 | `actions` | Every switch operation executed: who/what triggered it (operator, auto, manual, rollback, reset) |
 | `events`, `event_assets` | The audit log with severity, and which transformers and switches each event concerns |
 | `alerts` | Risk and voltage/line alerts as they were observed |
 | `controller_state` | Mode, configuration, emergency stop and undo stack |
-| `model_registry` | Forecasting model versions (used from Phase 4) |
+| `model_registry` | Forecasting model versions with features, windows, metrics and file hash |
 
 To use PostgreSQL instead, set `url` in `config/storage.yaml` (or the `LFDR_DB_URL` environment variable) to e.g. `postgresql+psycopg://user:password@localhost:5432/feeder` and `pip install "psycopg[binary]"`. The code uses SQLAlchemy Core and dialect-aware inserts, so nothing else changes.
 
@@ -378,6 +433,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     ├── grid/                      # Power systems simulation & reconfiguration
     │   ├── engine.py              # GridEngine: OpenDSS power flow, switching actions, rerouting search
     │   ├── risk.py                # Five risk classes, voltage/line alerts, recommendation confidence
+    │   ├── overload_skill.py      # Overload precision/recall: point forecast vs P90 vs actual
     │   ├── decisions.py           # Recommendations, operating modes, approval, rollback, emergency stop
     │   ├── network.dss            # OpenDSS circuit definition (11 kV dual-feeder)
     │   ├── scenarios.py           # Quick check of the engine on a flat load
@@ -385,19 +441,33 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   └── run_results.py         # Full 1,073-hour simulation benchmark script
     ├── ml/                        # Machine learning forecasting pipeline
     │   ├── prepare_data.py        # Smart meter extraction, weather sync, meter registry
-    │   ├── features.py            # Feature engineering (lags, rolling stats, CDD)
+    │   ├── features.py            # Feature engineering (lags, rolling stats, CDD; v2 ramps and asset features)
     │   ├── train_xgb.py           # XGBoost training with early stopping & refit
-    │   ├── evaluate.py            # Accuracy benchmarking vs persistence models
-    │   └── model_xgb.json         # Serialized production XGBoost model
+    │   ├── evaluate.py            # Accuracy benchmarking vs persistence models, peak-hour metrics
+    │   ├── intervals.py           # Conformal P10-P90 intervals (rolling 28 days), coverage, pinball loss
+    │   ├── forecaster.py          # forecast_at(t): one 24 h-ahead forecast from a history table
+    │   ├── metadata.py            # Model metadata (version, features, windows, metrics, SHA-256), registry
+    │   ├── cold_start.py          # Build whatever is missing: data -> model -> forecasts -> intervals
+    │   ├── train_v2.py            # v2 experiments: new features, Random Forest, quantile XGBoost, weekly retraining
+    │   ├── model_xgb.json         # Serialized production XGBoost model (v1)
+    │   ├── model_xgb.meta.json    # Its metadata
+    │   └── models/                # v2 experiment models (created by train_v2.py, not in the repository)
     ├── data/                      # Data assets & outputs
     │   ├── raw/                   # eMARC Excel/CSV files & weather cache (not in the repository)
     │   ├── processed/             # clusters.parquet, meter_registry.csv (not in the repository)
     │   ├── forecast.csv           # Final held-out test predictions (interface contract)
     │   ├── forecast_all.csv       # Complete train/val/test predictions
+    │   ├── forecast_intervals.csv # P10/P90 bounds for every test hour
+    │   ├── forecast_v2.csv        # v2 experiment forecasts (created by train_v2.py)
     │   ├── scale_factors.json     # Normalization & grid scaling parameters
     │   └── twin.db                # Local database, created on first run (not in the repository)
     ├── docs/                      # Documentation artifacts & figures
     │   ├── metrics.csv            # Comprehensive model accuracy metrics
+    │   ├── metrics_peak.csv       # Accuracy on the top 10% of hours
+    │   ├── metrics_intervals.csv  # Interval coverage, pinball loss, width (static and rolling)
+    │   ├── interval_calibration.csv # Static conformal ratios per transformer and block of the day
+    │   ├── metrics_overload.csv   # Overload precision/recall per scenario (point vs P90)
+    │   ├── metrics_v2*.csv, backtest_v2.csv, feature_importance_v2.csv  # v2 experiments (created by train_v2.py)
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
     │   ├── results_worst_hour.csv # Worst-hour peak reduction analysis
     │   ├── results_mitigation.csv # Hours with no full fix where a safe mitigation exists
@@ -416,6 +486,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto, restart
     │   ├── test_storage.py        # Schema, imports, filters, batching, retention, restart restores everything
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
+    │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
+    │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
     │   └── test_artifacts.py      # Forecast files, scale factors, model and config agree
     ├── scripts/                   # Helper scripts, not part of the pipeline
     │   ├── check_imports.py       # Environment sanity verification
@@ -501,13 +573,18 @@ cd project/ml
 python prepare_data.py
 python train_xgb.py
 python evaluate.py
+python intervals.py
+```
+Or let `python cold_start.py` run whichever of these steps are needed. To run the v2 experiments (needs `data/processed/clusters.parquet`, takes a few minutes):
+```bash
+python train_v2.py
 ```
 
 ### 5. Running the Tests
 ```bash
 cd project
-python -m pytest                  # full suite, about 30 s (includes the 1,073-hour benchmark)
-python -m pytest -m "not slow"    # everything except the benchmark, about 5 s
+python -m pytest                  # full suite, about 3 min (benchmark, overload scoring, v2 training, cold start)
+python -m pytest -m "not slow"    # everything except those, about 35 s
 ```
 `python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the app headless and drive it through the S3 and S4 worst hours.
 

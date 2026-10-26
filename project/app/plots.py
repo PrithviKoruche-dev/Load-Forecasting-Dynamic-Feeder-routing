@@ -92,11 +92,19 @@ def topology_figure(loading, moves, threshold, risk_by_tx=None, switch_state=Non
     return fig
 
 
-def load_chart(df, t, kw_limit, adjusted=None, window_h=36):
-    """df: timestamp, predicted_kw, actual_kw for ONE transformer. adjusted: optional scenario series."""
+def load_chart(df, t, kw_limit, adjusted=None, window_h=36, band=None):
+    """df: timestamp, predicted_kw, actual_kw for ONE transformer. adjusted: optional scenario series.
+    band: optional (label, lower series, upper series) indexed by timestamp, already in the units to draw
+    (the dashboard applies the scenario's rules to the bounds themselves)."""
     t = pd.Timestamp(t)
     w = df[(df["timestamp"] >= t - pd.Timedelta(hours=window_h)) & (df["timestamp"] <= t + pd.Timedelta(hours=window_h))]
     fig = go.Figure()
+    if band is not None:                                         # forecast band, drawn first (underneath)
+        label, lo, hi = band
+        x = w["timestamp"]
+        fig.add_trace(go.Scatter(x=x, y=hi.loc[x].values, line=dict(width=0), hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scatter(x=x, y=lo.loc[x].values, fill="tonexty", fillcolor="rgba(255,122,26,0.18)",
+                                 line=dict(width=0), name=label))
     fig.add_trace(go.Scatter(x=w["timestamp"], y=w["actual_kw"], name="actual", line=dict(color="#3b82f6", width=2)))
     fig.add_trace(go.Scatter(x=w["timestamp"], y=w["predicted_kw"], name="forecast", line=dict(color=ORANGE, width=2)))
     if adjusted is not None:

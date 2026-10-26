@@ -143,6 +143,30 @@ class Store:
                  len(m_rows), Path(path).name)
         return len(f_rows) - have
 
+    def import_intervals_csv(self, path, model_version=None, horizon_h=24, method="conformal"):
+        """Load data/forecast_intervals.csv (columns pNN_kw, e.g. p10_kw and p90_kw). Idempotent.
+        Returns the number of rows inserted (0 if the file does not exist)."""
+        path = Path(path)
+        if not path.exists():
+            return 0
+        model_version = model_version or self.import_cfg["model_version"]
+        iv = pd.read_csv(path, parse_dates=["timestamp"])
+        if "asset_id" not in iv:
+            iv = ids.add_transformer_ids(iv)
+        qcols = [c for c in iv.columns if c[0] == "p" and c.endswith("_kw") and c[1:-3].isdigit()]
+        rows = [{"model_version": model_version, "target_time": t.to_pydatetime(), "asset_id": a,
+                 "horizon_h": float(horizon_h), "quantile": int(c[1:-3]) / 100, "kw": float(v), "method": method}
+                for c in qcols for t, a, v in zip(iv["timestamp"], iv["asset_id"], iv[c]) if pd.notna(v)]
+        with self.engine.connect() as c:
+            have = c.execute(select(func.count()).select_from(S.forecast_quantiles)
+                             .where(S.forecast_quantiles.c.model_version == model_version)).scalar_one()
+        if have == len(rows):
+            return 0
+        with self.engine.begin() as c:
+            for chunk in _chunks(rows, self.batch_size):
+                c.execute(self._insert(S.forecast_quantiles, ignore=True), chunk)
+        return len(rows) - have
+
     def write_measurements(self, rows):
         """Bulk insert (in batches of storage.yaml batch_size); duplicates (time, asset, source) are skipped."""
         stmt = self._insert(S.measurements, ignore=True)
@@ -161,11 +185,71 @@ class Store:
              .outerjoin(m, (m.c.time == f.c.target_time) & (m.c.asset_id == f.c.asset_id) & (m.c.source == source))
              .where(f.c.model_version == model_version)
              .order_by(a.c.name, f.c.target_time))
+        fq = S.forecast_quantiles
+        qq = select(fq.c.target_time, fq.c.asset_id, fq.c.quantile, fq.c.kw).where(fq.c.model_version == model_version)
         with self.engine.connect() as c:
             df = pd.DataFrame(c.execute(q).mappings().all())
-        if not df.empty:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            qs = pd.DataFrame(c.execute(qq).mappings().all())
+        if df.empty:
+            return df
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        if not qs.empty:
+            qs["col"] = qs["quantile"].map(lambda x: f"p{round(100 * x)}_kw")
+            wide = qs.pivot_table(index=["target_time", "asset_id"], columns="col", values="kw").reset_index()
+            wide = wide.rename(columns={"target_time": "timestamp"})
+            wide["timestamp"] = pd.to_datetime(wide["timestamp"])
+            df = df.merge(wide, on=["timestamp", "asset_id"], how="left")
+            df.columns.name = None
         return df
+
+    # ------------------------------------------------------------------ forecast evaluation (E10)
+    def score_forecasts(self, now, model_version=None, source=None):
+        """Score every pending forecast whose target time has passed (<= now) and whose measurement exists:
+        error_kw = predicted - actual, status 'scored'. Returns the number scored."""
+        model_version = model_version or self.import_cfg["model_version"]
+        source = source or self.import_cfg["measurement_source"]
+        f, m = S.forecasts, S.measurements
+        now = pd.Timestamp(now).to_pydatetime()
+        q = (select(f.c.id, (f.c.predicted_kw - m.c.kw).label("err"))
+             .join(m, (m.c.time == f.c.target_time) & (m.c.asset_id == f.c.asset_id) & (m.c.source == source))
+             .where(f.c.model_version == model_version, f.c.status == "pending", f.c.target_time <= now,
+                    m.c.kw.is_not(None)))
+        with self.engine.begin() as c:
+            todo = c.execute(q).all()
+            if todo:
+                from sqlalchemy import bindparam
+                stmt = update(f).where(f.c.id == bindparam("fid")).values(status="scored", error_kw=bindparam("err"))
+                for chunk in _chunks([{"fid": i, "err": float(err)} for i, err in todo], self.batch_size):
+                    c.execute(stmt, chunk)
+        return len(todo)
+
+    def forecast_performance(self, until=None, model_version=None, source=None):
+        """Accuracy of the forecasts scored so far (target time <= until), per transformer and pooled:
+        scored, pending, MAE, RMSE, nRMSE (% of mean actual) and bias (+ = over-forecast), in grid kW."""
+        model_version = model_version or self.import_cfg["model_version"]
+        source = source or self.import_cfg["measurement_source"]
+        f, m, a = S.forecasts, S.measurements, S.assets
+        q = (select(a.c.name.label("transformer"), f.c.status, f.c.error_kw, m.c.kw.label("actual"), f.c.target_time)
+             .join(a, a.c.asset_id == f.c.asset_id)
+             .outerjoin(m, (m.c.time == f.c.target_time) & (m.c.asset_id == f.c.asset_id) & (m.c.source == source))
+             .where(f.c.model_version == model_version))
+        if until is not None:
+            q = q.where(f.c.target_time <= pd.Timestamp(until).to_pydatetime())
+        with self.engine.connect() as c:
+            d = pd.DataFrame(c.execute(q).mappings().all())
+        cols = ["transformer", "scored", "pending", "MAE_kW", "RMSE_kW", "nRMSE_%", "bias_kW"]
+        if d.empty:
+            return pd.DataFrame(columns=cols)
+        rows = []
+        for tx, g in list(d.groupby("transformer")) + [("ALL", d)]:
+            s_ = g[g["status"] == "scored"]
+            e_ = s_["error_kw"]
+            rmse = float((e_ ** 2).mean() ** 0.5) if len(s_) else None
+            rows.append({"transformer": tx, "scored": len(s_), "pending": int((g["status"] == "pending").sum()),
+                         "MAE_kW": float(e_.abs().mean()) if len(s_) else None, "RMSE_kW": rmse,
+                         "nRMSE_%": 100 * rmse / float(s_["actual"].mean()) if len(s_) else None,
+                         "bias_kW": float(e_.mean()) if len(s_) else None})
+        return pd.DataFrame(rows, columns=cols)
 
     def model_versions(self):
         with self.engine.connect() as c:

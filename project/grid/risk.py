@@ -65,9 +65,15 @@ class RiskModel:
         return {"forecast_pct": forecast_pct, "measured_pct": measured_pct,
                 "forecast_class": f_cls, "measured_class": m_cls, "risk_class": overall}
 
-    def transformers(self, forecast_by_tx, measured_by_tx=None, threshold=None):
-        measured_by_tx = measured_by_tx or {}
-        return {t: self.transformer(f, measured_by_tx.get(t), threshold) for t, f in forecast_by_tx.items()}
+    def transformers(self, forecast_by_tx, measured_by_tx=None, threshold=None, upper_by_tx=None):
+        """upper_by_tx: loading at the forecast's upper bound (e.g. P90); when given, it sets the forecast class."""
+        measured_by_tx, upper_by_tx = measured_by_tx or {}, upper_by_tx or {}
+        out = {}
+        for t, f in forecast_by_tx.items():
+            r = self.transformer(f, measured_by_tx.get(t), threshold, upper_by_tx.get(t))
+            r["upper_pct"] = upper_by_tx.get(t)
+            out[t] = r
+        return out
 
     # ------------------------------------------------------------------ voltage and lines
     def voltage_alerts(self, bus_voltages):

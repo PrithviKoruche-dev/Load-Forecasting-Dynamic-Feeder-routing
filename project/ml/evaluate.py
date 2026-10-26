@@ -37,6 +37,23 @@ def score_table(test):
     return pd.DataFrame(rows)
 
 
+def peak_table(test, top=0.10):
+    """Error at each transformer's highest-load hours (the top `top` share of ACTUAL load in the test period),
+    where overloads happen and where the forecast matters most. bias > 0 means over-forecasting."""
+    rows = []
+    for tx, g in list(test.groupby("transformer_id")) + [("ALL", None)]:
+        if g is None:                                    # pooled: each transformer's own peak hours together
+            g = pd.concat(grp[grp["actual_kw_raw"] >= grp["actual_kw_raw"].quantile(1 - top)]
+                          for _, grp in test.groupby("transformer_id"))
+        else:
+            g = g[g["actual_kw_raw"] >= g["actual_kw_raw"].quantile(1 - top)]
+        for name, col in MODELS.items():
+            e = g[col] - g["actual_kw_raw"]
+            rows.append({"transformer": tx, "model": name, "hours": len(g), "MAE_kW": e.abs().mean(),
+                         "bias_kW": e.mean(), "MAPE_%": 100 * (e.abs() / g["actual_kw_raw"]).mean()})
+    return pd.DataFrame(rows)
+
+
 def aggregation_table(test, res):
     """nRMSE of each model per transformer (average) vs. for the SUM of all six transformers."""
     piv = {c: test.pivot(index="timestamp", columns="transformer_id", values=c)
@@ -73,6 +90,8 @@ def main():
     print(f"test period: {test['timestamp'].min()} -> {test['timestamp'].max()}  ({len(test)} scored hours)")
     res = score_table(test)
     res.round(2).to_csv(ROOT / "docs" / "metrics.csv", index=False)
+    peak = peak_table(test)
+    peak.round(2).to_csv(ROOT / "docs" / "metrics_peak.csv", index=False)
 
     print("\nnRMSE (%) on the test set (lower is better):")
     print(res.pivot(index="transformer", columns="model", values="nRMSE_%").round(1)[list(MODELS)].to_string())
@@ -85,8 +104,13 @@ def main():
         print(f"  {r['model']:28s} single-transformer avg {r['single_tx_avg_nRMSE_%']:5.1f}%   "
               f"all-six sum {r['all_six_sum_nRMSE_%']:5.1f}%")
 
+    print("\nPeak hours (top 10% of each transformer's actual load), pooled:")
+    print(peak[peak["transformer"] == "ALL"].drop(columns="transformer").round(2).to_string(index=False))
+
     plot_first_week(test, ROOT / "docs" / "fig_actual_vs_pred.png")
-    print("\nSaved docs/metrics.csv and docs/fig_actual_vs_pred.png")
+    import metadata
+    metadata.write(metadata.v1_metadata(), ROOT / "ml" / "model_xgb.json")
+    print("\nSaved docs/metrics.csv, docs/metrics_peak.csv, docs/fig_actual_vs_pred.png and ml/model_xgb.meta.json")
 
 
 if __name__ == "__main__":

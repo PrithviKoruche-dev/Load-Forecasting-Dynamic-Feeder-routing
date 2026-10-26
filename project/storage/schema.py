@@ -4,7 +4,8 @@ Tables and what they hold:
     meta              schema version
     assets            substation, feeders, transformers, switches (from config/grid.yaml)
     meters            meter registry: MTR-xxxxx -> household -> transformer (from prepare_data.py)
-    forecasts         one row per (model version, target time, transformer, horizon)
+    forecasts         one row per (model version, target time, transformer, horizon); pending until scored
+    forecast_quantiles  interval bounds (e.g. P10, P90) for those forecasts
     measurements      measured load per (time, asset, source), with a quality flag
     recommendations   every recommendation the controller produced, with its full before/after detail
     candidates        every switching option evaluated for a recommendation, with its outcome and reason
@@ -53,6 +54,18 @@ forecasts = Table("forecasts", metadata,
                   Column("created_at", String(30)),
                   UniqueConstraint("model_version", "target_time", "asset_id", "horizon_h", name="uq_forecast"))
 Index("ix_forecasts_time", forecasts.c.model_version, forecasts.c.target_time)
+
+forecast_quantiles = Table("forecast_quantiles", metadata,
+                           Column("id", Integer, primary_key=True, autoincrement=True),
+                           Column("model_version", String(40), nullable=False),
+                           Column("target_time", DateTime, nullable=False),
+                           Column("asset_id", String(20), ForeignKey("assets.asset_id"), nullable=False),
+                           Column("horizon_h", Float, nullable=False),
+                           Column("quantile", Float, nullable=False),
+                           Column("kw", Float, nullable=False),
+                           Column("method", String(40)),
+                           UniqueConstraint("model_version", "target_time", "asset_id", "horizon_h", "quantile",
+                                            name="uq_forecast_quantile"))
 
 measurements = Table("measurements", metadata,
                      Column("id", Integer, primary_key=True, autoincrement=True),

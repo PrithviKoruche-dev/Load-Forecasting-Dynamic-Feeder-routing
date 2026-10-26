@@ -205,3 +205,30 @@ def test_each_event_is_logged_once(app):
     finally:
         logger.removeHandler(grab)
     assert sum("Mode changed" in m for m in grab.messages) == 1
+
+
+def test_forecast_risk_uses_the_p90_bound(app):
+    """Phase 4: the risk table shows the P90 loading and the forecast class follows it."""
+    ev_worst_hour(app)
+    table = app.dataframe[0].value.set_index("transformer")
+    assert list(table.columns[:3]) == ["forecast %", "P90 %", "measured %"]
+    assert table.loc["T4", "P90 %"] == 107.9 and table.loc["T4", "forecast %"] == 91.5
+    assert (table["P90 %"] >= table["forecast %"]).all()
+
+
+def test_load_chart_shows_the_scenario_adjusted_band(app):
+    import json
+    ev_worst_hour(app)
+    load = json.loads(app.get("plotly_chart")[1].proto.spec)
+    names = [tr.get("name") for tr in load["data"]]
+    assert "P10-P90 band + scenario" in names and "forecast + scenario" in names
+    assert next(tr for tr in load["data"] if tr.get("name") == "P10-P90 band + scenario")["fill"] == "tonexty"
+
+
+def test_forecasts_are_scored_as_the_replay_advances(app):
+    acc = app.dataframe[1].value.set_index("transformer")
+    assert list(acc.columns) == ["scored", "pending", "MAE_kW", "RMSE_kW", "nRMSE_%", "bias_kW"]
+    early = acc.loc["ALL", "scored"]
+    ev_worst_hour(app)
+    late = app.dataframe[1].value.set_index("transformer")
+    assert late.loc["ALL", "scored"] == 2970 > early and late.loc["ALL", "pending"] == 0

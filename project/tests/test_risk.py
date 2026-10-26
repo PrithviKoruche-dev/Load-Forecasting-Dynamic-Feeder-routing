@@ -60,3 +60,15 @@ def test_confidence(rm):
     at_limit = rm.confidence({"T1": 85.0}, err)
     assert at_limit["probability"] == pytest.approx(0.5) and at_limit["label"] == "low"
     assert rm.confidence({"T1": 50.0}, {}) is None
+
+
+def test_upper_bound_sets_the_forecast_class(rm):
+    """Phase 4: the forecast class uses the P90 loading when one is given, so a point forecast below the
+    limit can still be a predicted overload; measured risk and the reported forecast % are unchanged."""
+    r = rm.transformers({"T4": 78.0, "T5": 40.0}, {"T4": 70.0}, upper_by_tx={"T4": 92.0, "T5": 55.0})
+    assert r["T4"]["forecast_pct"] == 78.0 and r["T4"]["upper_pct"] == 92.0
+    assert (r["T4"]["forecast_class"], r["T4"]["measured_class"], r["T4"]["risk_class"]) == \
+        ("predicted_overload", "elevated", "predicted_overload")
+    assert r["T5"]["forecast_class"] == "normal"
+    plain = rm.transformers({"T4": 78.0}, {"T4": 70.0})
+    assert plain["T4"]["forecast_class"] == "elevated" and plain["T4"]["upper_pct"] is None

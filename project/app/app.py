@@ -22,6 +22,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))                    # project/ -> import core
 sys.path.insert(0, str(ROOT / "grid"))
+sys.path.insert(0, str(ROOT / "ml"))
 sys.path.insert(0, str(Path(__file__).parent))
 import plots            # noqa: E402
 from core import config, scenarios  # noqa: E402
@@ -74,7 +75,13 @@ def services(db_url):
     Built on the OpenDSS thread because restoring may need to load the network."""
     store = Store(db_url)
     store.import_forecast_csv(ROOT / "data" / "forecast.csv")
+    store.import_intervals_csv(ROOT / "data" / "forecast_intervals.csv")
     store.import_meter_registry(ROOT / "data" / "processed" / "meter_registry.csv")
+    try:
+        import metadata
+        metadata.register(store, ROOT / "ml" / "model_xgb.json")
+    except (OSError, ValueError) as ex:                    # a missing or mismatched metadata file is reported
+        log.warning("model not registered: %s", ex)
     ctl = EXEC.submit(lambda: Controller(e._default, store=store)).result()
     log.info("database %s ready: %s", db_url, {k: v for k, v in store.counts().items() if v})
     return store, ctl
@@ -121,8 +128,10 @@ st.session_state["moves"] = list(CTL.active)
 def load_forecast(db_url):
     """Forecasts and measured loads from the database (same shape as data/forecast.csv)."""
     fc = STORE.forecast_frame()
+    upper_col = next((c for c in reversed(list(fc.columns)) if c[0] == "p" and c.endswith("_kw") and c[1:-3].isdigit()), None)
+    upper = fc.pivot(index="timestamp", columns="transformer_id", values=upper_col) if upper_col else None
     return (fc, fc.pivot(index="timestamp", columns="transformer_id", values="predicted_kw"),
-            fc.pivot(index="timestamp", columns="transformer_id", values="actual_kw"))
+            fc.pivot(index="timestamp", columns="transformer_id", values="actual_kw"), upper, upper_col)
 
 
 @st.cache_data
@@ -140,7 +149,8 @@ def kw_at_limit(threshold):
     return dss(_kw_calc, threshold)
 
 
-fc, pred, actual = load_forecast(DB_URL)
+fc, pred, actual, upper, UPPER_COL = load_forecast(DB_URL)
+USE_UPPER = upper is not None and config.forecasting()["intervals"]["use_upper_for_risk"]
 
 
 def params():
@@ -341,6 +351,8 @@ moves = list(CTL.active)
 cur = evaluate(loads, moves)
 measured_loads = loads_at(t, p, actual) if not actual.loc[t].isna().any() else None
 measured = evaluate(measured_loads, moves) if measured_loads else None
+upper_eval = evaluate(loads_at(t, p, upper), moves) if USE_UPPER and not upper.loc[t].isna().any() else None
+STORE.score_forecasts(t)                                 # every forecast whose hour has passed gets scored
 
 # ------------------------------------------------------------------ main
 st.title("AI-driven load forecasting and dynamic feeder rerouting")
@@ -358,7 +370,8 @@ if cur is None:
     st.stop()
 
 loading = cur["loading_by_tx"]
-risk = RISK.transformers(loading, measured["loading_by_tx"] if measured else None, thr)
+risk = RISK.transformers(loading, measured["loading_by_tx"] if measured else None, thr,
+                         upper_eval["loading_by_tx"] if upper_eval else None)
 STORE.record_alerts(_now_label(),
                     [{"asset": ids.transformer_id(t_), "kind": "transformer", "level": r["risk_class"],
                       "value": max(v for v in (r["forecast_pct"], r["measured_pct"]) if v is not None),
@@ -388,19 +401,31 @@ with right:
     st.subheader("Load forecast")
     sel = st.selectbox("Transformer", e.TX, key="sel_tx")
     d = fc[fc["transformer_id"] == sel].reset_index(drop=True)
-    adj = None
-    if PRESETS[st.session_state["scenario"]].rule is not None:
-        adj = pd.Series([adjust(sel, ts, kw, p) for ts, kw in zip(d["timestamp"], d["predicted_kw"])],
-                        index=d["timestamp"])
-    st.plotly_chart(plots.load_chart(d, t, kw_at_limit(thr), adj))
+    adj = band = None
+    stressed = PRESETS[st.session_state["scenario"]].rule is not None
+
+    def _series(col):
+        vals = d[col] if not stressed else [adjust(sel, ts, kw, p) for ts, kw in zip(d["timestamp"], d[col])]
+        return pd.Series(list(vals), index=d["timestamp"])
+    if stressed:
+        adj = _series("predicted_kw")
+    qcols = sorted((c for c in d.columns if c[0] == "p" and c.endswith("_kw") and c[1:-3].isdigit()),
+                   key=lambda c: int(c[1:-3]))
+    if len(qcols) >= 2 and d[qcols[-1]].notna().any():
+        band = (f"{qcols[0][:-3].upper()}-{qcols[-1][:-3].upper()} band" + (" + scenario" if stressed else ""),
+                _series(qcols[0]), _series(qcols[-1]))
+    st.plotly_chart(plots.load_chart(d, t, kw_at_limit(thr), adj, band=band))
 
 st.divider()
 a, b = st.columns(2)
 with a:
     st.subheader("Risk now")
+    up_label = UPPER_COL[:-3].upper() if USE_UPPER else None
     st.caption("Forecast = the 24 h-ahead forecast for this hour; measured = what the meters recorded. "
-               "Both under the current scenario and switch state.")
+               + (f"Forecast risk uses the {up_label} upper bound, so forecast uncertainty can raise it. " if up_label else "")
+               + "All under the current scenario and switch state.")
     st.dataframe(pd.DataFrame([{"transformer": t_, "forecast %": r["forecast_pct"],
+                                **({f"{up_label} %": r["upper_pct"]} if up_label else {}),
                                 "measured %": r["measured_pct"],
                                 "forecast risk": RISK_LABELS.get(r["forecast_class"], "n/a"),
                                 "measured risk": RISK_LABELS.get(r["measured_class"], "n/a"),
@@ -412,6 +437,15 @@ with a:
                                     "detail": x["text"]} for x in net_alerts]), hide_index=True)
     else:
         st.caption("No voltage or line alerts.")
+    perf = STORE.forecast_performance(until=t)
+    total = STORE.forecast_performance()
+    with st.expander("Forecast accuracy so far", expanded=False):
+        n_sc = int(perf.set_index("transformer").loc["ALL", "scored"]) if not perf.empty else 0
+        n_pend = int(total.set_index("transformer").loc["ALL", "pending"]) if not total.empty else 0
+        st.caption(f"{n_sc} forecasts scored up to {t:%d %b %H:%M}; {n_pend} still pending (their hour has not come "
+                   "yet). nRMSE is relative to the mean actual load; bias > 0 means over-forecasting.")
+        if n_sc:
+            st.dataframe(perf.round(2), hide_index=True)
     st.subheader("Day-ahead overload alerts")
     st.caption(f"All 24 hours of {t:%d %b %Y}, under the current switch state.")
     alerts = day_scan(t.normalize(), p, tuple(moves), thr)

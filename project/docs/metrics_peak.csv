@@ -1,0 +1,29 @@
+transformer,model,hours,MAE_kW,bias_kW,MAPE_%
+T1,XGBoost (train only),108,1.15,-1.07,19.91
+T1,XGBoost (train+val refit),108,1.1,-1.02,19.13
+T1,Same hour yesterday,108,1.28,-0.88,22.58
+T1,Same hour last week,108,1.21,-0.88,21.75
+T2,XGBoost (train only),108,1.03,-1.02,20.86
+T2,XGBoost (train+val refit),108,1.02,-1.0,20.53
+T2,Same hour yesterday,108,1.09,-0.95,22.08
+T2,Same hour last week,108,1.18,-0.99,24.06
+T3,XGBoost (train only),108,0.91,-0.82,15.91
+T3,XGBoost (train+val refit),108,0.91,-0.82,15.81
+T3,Same hour yesterday,108,1.01,-0.66,17.86
+T3,Same hour last week,108,1.16,-0.86,20.58
+T4,XGBoost (train only),108,1.16,-1.14,19.11
+T4,XGBoost (train+val refit),108,1.11,-1.09,18.3
+T4,Same hour yesterday,108,1.04,-0.75,17.48
+T4,Same hour last week,108,1.04,-0.75,17.58
+T5,XGBoost (train only),108,0.47,-0.46,22.86
+T5,XGBoost (train+val refit),108,0.47,-0.47,23.22
+T5,Same hour yesterday,108,0.44,-0.35,21.89
+T5,Same hour last week,108,0.76,-0.74,37.08
+T6,XGBoost (train only),108,1.24,-1.22,27.09
+T6,XGBoost (train+val refit),108,1.16,-1.08,25.43
+T6,Same hour yesterday,108,1.2,-1.07,26.39
+T6,Same hour last week,108,1.34,-1.03,29.95
+ALL,XGBoost (train only),648,0.99,-0.95,20.96
+ALL,XGBoost (train+val refit),648,0.96,-0.91,20.41
+ALL,Same hour yesterday,648,1.01,-0.78,21.38
+ALL,Same hour last week,648,1.11,-0.88,25.17

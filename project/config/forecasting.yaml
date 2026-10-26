@@ -48,3 +48,27 @@ model:
 
 scaling:
   target_peak_kw: 340.0                 # each cluster's training peak is scaled to this (about 73% of 500 kVA)
+
+# Forecast intervals (gap item E11) for the published v1 model, by conformal calibration on the ratio
+# actual / forecast, per transformer and block of hours. "static": quantiles of the validation-period ratios
+# (train-only model, data it never saw). "rolling": for each target hour, the ratios of the last window_days
+# whose actual was already known 24 h earlier (validation ratios first, then the published model's own) - it
+# follows seasonal drift and uses past data only.
+intervals:
+  method: rolling                       # rolling | static
+  window_days: 28                       # rolling window (7, 14 and 28 were compared on the test period)
+  lower_quantile: 0.10
+  upper_quantile: 0.90
+  hour_blocks: 4                        # 4 blocks of 6 h (night, morning, afternoon, evening) per transformer
+  use_upper_for_risk: true              # the forecast risk class uses P90, so uncertainty can raise the risk
+
+# v2 models (Phase 4), trained by ml/train_v2.py next to the published v1 model, on the same split.
+v2:
+  model_version: xgb-24h-v2
+  random_forest:                        # comparison model (gap item E8)
+    n_estimators: 300
+    min_samples_leaf: 5
+    max_features: 0.5
+    random_state: 42
+  quantiles: [0.1, 0.5, 0.9]            # XGBoost quantile model for P10 / P50 / P90 (gap item E11)
+  retrain_every_days: 7                 # backtest: retrain on all data before each week of the test period

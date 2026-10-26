@@ -22,6 +22,20 @@ FEATURES = ["tx", "hour", "dow", "is_weekend",
             "roll_mean_3", "roll_mean_24", "roll_mean_168", "roll_max_24",
             "temp", "temp_lag_24", "cdd"]
 
+# v2 (gap item E4) adds, still using only data at least 24 h old:
+#   ramp_1h            latest known hourly change: y(t-24) - y(t-25)
+#   ramp_24h           day-over-day change at the same hour: y(t-24) - y(t-48)
+#   rating_kva         the transformer's rating
+#   share_residential  share of its load that is residential (consumer mix)
+# On the six-transformer network the last two are constant; they matter for the synthetic city (Phase 7).
+FEATURES_V2 = FEATURES + ["ramp_1h", "ramp_24h", "rating_kva", "share_residential"]
+
+
+def _asset_features():
+    g = config.grid()["transformers"]
+    return ({t: float(x["rating_kva"]) for t, x in g.items()},
+            {t: 1.0 if x["category"] == "residential" else 0.0 for t, x in g.items()})
+
 
 def split_times(timestamps, train=None, val=None):
     """Time-based split boundaries: train < t1 <= val < t2 <= test. Shares default to config/forecasting.yaml."""
@@ -40,8 +54,10 @@ def train_stats(df, t1):
     return mean, peak
 
 
-def build_features(df, train_mean):
-    """Load is divided by each transformer's TRAIN mean so one model can serve all six."""
+def build_features(df, train_mean, extended=False):
+    """Load is divided by each transformer's TRAIN mean so one model can serve all six.
+    extended=True also builds the v2 features (FEATURES_V2)."""
+    rating, share = _asset_features() if extended else ({}, {})
     out = []
     for tx, g in df.sort_values("timestamp").groupby("transformer_id"):
         g = g.set_index("timestamp")
@@ -62,6 +78,11 @@ def build_features(df, train_mean):
         f["temp"] = g["temp_c"]
         f["temp_lag_24"] = g["temp_c"].shift(24)
         f["cdd"] = (g["temp_c"] - CDD_BASE_C).clip(lower=0)   # cooling-degree feature
+        if extended:
+            f["ramp_1h"] = y.shift(24) - y.shift(25)
+            f["ramp_24h"] = y.shift(24) - y.shift(48)
+            f["rating_kva"] = rating[tx]
+            f["share_residential"] = share[tx]
         f["y"] = y
         f["actual_raw"] = g["load_kw_raw"]
         out.append(f.reset_index())

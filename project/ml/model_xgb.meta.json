@@ -1,0 +1,89 @@
+{
+  "version": "xgb-24h-v1",
+  "kind": "xgboost-24h-direct",
+  "model_file": "model_xgb.json",
+  "sha256": "b5320c664383dbbbf9ba720e77ed6da14fc1cfcf62cf9264c9fcbfb16dd37d9d",
+  "created_at": "2026-10-26T09:38:50",
+  "features": [
+    "tx",
+    "hour",
+    "dow",
+    "is_weekend",
+    "lag_24",
+    "lag_48",
+    "lag_168",
+    "roll_mean_3",
+    "roll_mean_24",
+    "roll_mean_168",
+    "roll_max_24",
+    "temp",
+    "temp_lag_24",
+    "cdd"
+  ],
+  "params": {
+    "n_estimators": 600,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "early_stopping_rounds": 40,
+    "tree_method": "hist",
+    "random_state": 42,
+    "n_estimators_used": 121,
+    "enable_categorical": true,
+    "refit": "train+val with the tree count fixed by early stopping"
+  },
+  "windows": {
+    "train": {
+      "from": "2019-06-01 00:00:00",
+      "to": "2019-12-26 13:00:00",
+      "rows": 30036
+    },
+    "val": {
+      "from": "2019-12-26 14:00:00",
+      "to": "2020-02-09 06:00:00",
+      "rows": 6438
+    },
+    "test": {
+      "from": "2020-02-09 07:00:00",
+      "to": "2020-03-24 23:00:00",
+      "rows": 6438
+    }
+  },
+  "metrics": {
+    "test": {
+      "pooled": {
+        "MAE_kW": 0.48,
+        "RMSE_kW": 0.68,
+        "nRMSE_%": 25.33,
+        "MAPE_%": 22.59
+      },
+      "nRMSE_%_by_transformer": {
+        "T1": 19.99,
+        "T2": 20.98,
+        "T3": 18.53,
+        "T4": 28.66,
+        "T5": 31.26,
+        "T6": 32.95
+      },
+      "units": "MAE/RMSE in raw cluster kW"
+    }
+  },
+  "libraries": {
+    "xgboost": "3.4.1",
+    "pandas": "3.1.0"
+  },
+  "horizon_h": 24,
+  "target": "load_kw_raw / train mean of the transformer",
+  "scaling": {
+    "target_peak_kw": 340.0
+  },
+  "trained_with": {
+    "xgboost": "3.4.1"
+  },
+  "outputs": [
+    "data/forecast.csv",
+    "data/forecast_all.csv"
+  ],
+  "note": "written by ml/metadata.py from the committed model, forecasts and metrics; ml/evaluate.py rewrites it after every retraining"
+}
