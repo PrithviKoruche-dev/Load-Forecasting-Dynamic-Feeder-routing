@@ -1,0 +1,50 @@
+transformer,model,MAE_kW,RMSE_kW,nRMSE_%,MAPE_%,bias_kW
+T1,XGBoost v1 features (retrained),17.847,25.853,20.07,13.286,-0.783
+T1,XGBoost v2 features,17.685,25.627,19.894,13.138,-1.007
+T1,Random Forest v2 features,17.756,25.852,20.069,13.016,-2.073
+T1,XGBoost quantile median (q50_kw),17.507,25.722,19.968,12.735,-3.524
+T1,"XGBoost v2, retrained every 7 d",17.587,25.584,19.861,13.005,-1.399
+T1,Same hour yesterday,22.92,34.827,27.036,16.66,-0.931
+T1,Same hour last week,22.519,32.045,24.877,16.845,-5.169
+T2,XGBoost v1 features (retrained),17.602,24.496,20.936,15.004,0.349
+T2,XGBoost v2 features,17.593,24.504,20.942,14.941,-0.086
+T2,Random Forest v2 features,18.087,25.465,21.764,15.244,-0.904
+T2,XGBoost quantile median (q50_kw),17.228,24.62,21.042,14.23,-2.641
+T2,"XGBoost v2, retrained every 7 d",17.595,24.727,21.133,14.888,-0.365
+T2,Same hour yesterday,21.711,32.19,27.511,18.007,-1.0
+T2,Same hour last week,23.836,33.012,28.214,19.731,-4.281
+T3,XGBoost v1 features (retrained),17.257,23.585,18.479,14.107,-0.149
+T3,XGBoost v2 features,17.381,23.592,18.485,14.211,-0.103
+T3,Random Forest v2 features,17.39,23.82,18.664,14.271,-0.223
+T3,XGBoost quantile median (q50_kw),16.893,23.29,18.248,13.657,-1.138
+T3,"XGBoost v2, retrained every 7 d",17.367,23.575,18.472,14.165,-0.568
+T3,Same hour yesterday,20.924,29.341,22.99,16.634,-0.862
+T3,Same hour last week,24.673,32.457,25.431,19.882,-3.454
+T4,XGBoost v1 features (retrained),30.25,39.353,28.742,27.402,-0.298
+T4,XGBoost v2 features,30.146,39.228,28.651,27.423,0.038
+T4,Random Forest v2 features,30.712,39.886,29.131,27.716,-1.055
+T4,XGBoost quantile median (q50_kw),30.254,39.496,28.846,27.101,-1.877
+T4,"XGBoost v2, retrained every 7 d",30.321,39.354,28.743,27.452,-0.065
+T4,Same hour yesterday,38.294,51.374,37.521,33.686,-0.302
+T4,Same hour last week,37.049,49.193,35.929,32.044,1.286
+T5,XGBoost v1 features (retrained),21.045,27.179,31.224,35.342,-0.595
+T5,XGBoost v2 features,21.135,27.295,31.356,35.62,-0.524
+T5,Random Forest v2 features,21.136,27.283,31.343,36.154,0.683
+T5,XGBoost quantile median (q50_kw),21.136,27.351,31.421,34.69,-1.094
+T5,"XGBoost v2, retrained every 7 d",20.979,27.138,31.176,34.708,-1.172
+T5,Same hour yesterday,22.716,30.333,34.847,33.435,-1.394
+T5,Same hour last week,29.465,38.168,43.848,41.209,-9.97
+T6,XGBoost v1 features (retrained),24.25,32.483,32.67,37.316,1.871
+T6,XGBoost v2 features,24.318,32.631,32.819,37.358,1.89
+T6,Random Forest v2 features,24.733,33.14,33.331,38.393,3.394
+T6,XGBoost quantile median (q50_kw),24.153,32.434,32.621,36.709,0.727
+T6,"XGBoost v2, retrained every 7 d",24.257,32.604,32.792,37.168,1.562
+T6,Same hour yesterday,28.894,39.215,39.44,40.71,0.021
+T6,Same hour last week,33.834,45.016,45.275,47.069,2.998
+ALL,XGBoost v1 features (retrained),21.375,29.346,25.268,23.251,0.066
+ALL,XGBoost v2 features,21.376,29.332,25.256,23.28,0.035
+ALL,Random Forest v2 features,21.636,29.77,25.633,23.641,-0.03
+ALL,XGBoost quantile median (q50_kw),21.195,29.355,25.275,22.727,-1.591
+ALL,"XGBoost v2, retrained every 7 d",21.351,29.354,25.275,23.102,-0.335
+ALL,Same hour yesterday,25.91,36.985,31.845,26.179,-0.745
+ALL,Same hour last week,28.563,38.887,33.483,29.135,-3.098

@@ -278,3 +278,34 @@ def test_cold_start_trains_from_clusters(tmp_path, project_root):
     assert meta["version"] == "xgb-24h-v1"
     again = subprocess.run([sys.executable, str(proj / "ml" / "cold_start.py")], capture_output=True, text=True, cwd=proj)
     assert "nothing to do" in again.stdout
+
+
+# ------------------------------------------------------------------ v2 results on the eMARC data (committed)
+def test_v2_tables_match_the_committed_forecasts(project_root):
+    """docs/metrics_v2*.csv were produced by train_v2.py on the eMARC data; recompute them from the committed
+    data/forecast_v2.csv (no eMARC data needed) so the published v2 numbers stay checkable."""
+    import train_v2
+    from core import config
+    fc = pd.read_csv(project_root / "data" / "forecast_v2.csv", parse_dates=["timestamp"])
+    metrics, peak, intervals = train_v2.score_all(fc, config.forecasting()["v2"])
+    for got, name in ((metrics, "metrics_v2.csv"), (peak, "metrics_v2_peak.csv"), (intervals, "metrics_v2_intervals.csv")):
+        want = pd.read_csv(project_root / "docs" / name)
+        assert list(got.columns) == list(want.columns) and len(got) == len(want)
+        num = want.select_dtypes("number").columns
+        np.testing.assert_allclose(got[num].to_numpy(float), want[num].to_numpy(float), atol=2e-3, rtol=0)
+        assert (got.drop(columns=num).to_numpy() == want.drop(columns=num).to_numpy()).all()
+
+
+def test_v2_is_not_adopted_without_a_real_gain(project_root):
+    """The decision recorded in the README: v2 features, Random Forest and weekly retraining do not beat the
+    v1 feature set by a meaningful margin on the test period, and the quantile model covers less than the
+    rolling conformal band. If a rerun changes that, this test points at the README decision to revisit."""
+    m = pd.read_csv(project_root / "docs" / "metrics_v2.csv")
+    pooled = m[m["transformer"] == "ALL"].set_index("model")["nRMSE_%"]
+    v1 = pooled["XGBoost v1 features (retrained)"]
+    for challenger in ("XGBoost v2 features", "Random Forest v2 features", "XGBoost v2, retrained every 7 d"):
+        assert pooled[challenger] > v1 - 0.5, f"{challenger} now beats v1 by 0.5 points: revisit the decision"
+    q = pd.read_csv(project_root / "docs" / "metrics_v2_intervals.csv").set_index("transformer").loc["ALL", "coverage_%"]
+    conformal = pd.read_csv(project_root / "docs" / "metrics_intervals.csv")
+    conformal = conformal[(conformal["transformer"] == "ALL") & (conformal["method"] == "rolling 28 d")]["coverage_%"].iloc[0]
+    assert q < conformal

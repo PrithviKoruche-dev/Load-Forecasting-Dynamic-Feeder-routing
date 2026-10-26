@@ -91,6 +91,27 @@ def tables(test, models):
     return pd.DataFrame(rows), pd.DataFrame(peak)
 
 
+def quantile_columns(v2):
+    return [f"q{round(100 * q):02d}_kw" for q in v2["quantiles"]]
+
+
+def model_columns(v2):
+    """{model name in the tables: column of data/forecast_v2.csv}."""
+    qcols = quantile_columns(v2)
+    return {"XGBoost v1 features (retrained)": "xgb_v1_features_kw", "XGBoost v2 features": "xgb_v2_kw",
+            "Random Forest v2 features": "rf_v2_kw", f"XGBoost quantile median ({qcols[len(qcols) // 2]})": qcols[len(qcols) // 2],
+            f"XGBoost v2, retrained every {v2['retrain_every_days']} d": "retrained_kw",
+            "Same hour yesterday": "lag24_kw", "Same hour last week": "lag168_kw"}
+
+
+def score_all(out, v2):
+    """Accuracy, peak-hour and interval tables from a forecast_v2 frame."""
+    qs, qcols = v2["quantiles"], quantile_columns(v2)
+    scored = out.dropna(subset=["actual_kw", "lag24_kw", "lag168_kw"])
+    metrics, peak = tables(scored, model_columns(v2))
+    return metrics, peak, interval_table(scored, qcols[0], qcols[-1], qs[0], qs[-1])
+
+
 def interval_table(test, lo_col, hi_col, lo, hi):
     from intervals import pinball
     rows = []
@@ -157,7 +178,7 @@ def run(df, out_root=ROOT, verbose=True):
     out["xgb_v2_kw"] = (m_v2.predict(test[FEATURES_V2]) * k).clip(lower=0)
     out["rf_v2_kw"] = (rf.predict(_rf_matrix(test, FEATURES_V2)) * k).clip(lower=0)
     qpred = np.sort(np.atleast_2d(m_q.predict(test[FEATURES_V2])), axis=1)      # sorted: no crossing quantiles
-    qcols = [f"q{round(100 * q):02d}_kw" for q in qs]
+    qcols = quantile_columns(v2)
     for j, c in enumerate(qcols):
         out[c] = (qpred[:, j] * k.to_numpy()).clip(min=0)
     out["lag24_kw"] = test["lag_24"] * k
@@ -165,13 +186,8 @@ def run(df, out_root=ROOT, verbose=True):
     bt, n_retrains = backtest(F, t2, FEATURES_V2, m_v2.n_estimators, v2["retrain_every_days"], scale_k, train_mean)
     out = out.merge(bt[["timestamp", "transformer_id", "retrained_kw"]], on=["timestamp", "transformer_id"], how="left")
 
-    models = {"XGBoost v1 features (retrained)": "xgb_v1_features_kw", "XGBoost v2 features": "xgb_v2_kw",
-              "Random Forest v2 features": "rf_v2_kw", f"XGBoost quantile median ({qcols[len(qs) // 2]})": qcols[len(qs) // 2],
-              f"XGBoost v2, retrained every {v2['retrain_every_days']} d": "retrained_kw",
-              "Same hour yesterday": "lag24_kw", "Same hour last week": "lag168_kw"}
-    scored = out.dropna(subset=["actual_kw", "lag24_kw", "lag168_kw"])
-    metrics, peak = tables(scored, models)
-    intervals = interval_table(scored, qcols[0], qcols[-1], qs[0], qs[-1])
+    models = model_columns(v2)
+    metrics, peak, intervals = score_all(out, v2)
     bt_summary = metrics[metrics["model"].isin(["XGBoost v2 features", models_key(models, "retrained_kw")])]
     importance = pd.DataFrame({"feature": FEATURES_V2, "importance": m_v2.feature_importances_}).sort_values(
         "importance", ascending=False)

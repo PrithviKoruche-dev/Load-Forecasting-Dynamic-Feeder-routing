@@ -262,7 +262,24 @@ With the point forecast most real overloads in S2 and S3 are **missed**, a direc
 - **XGBoost quantile regression** (P10/P50/P90 in one model) as an alternative to the conformal band.
 - **Weekly retraining backtest**: the test period is forecast in 7-day blocks, each by a model retrained on everything known at the block's first issue time.
 
-It writes `data/forecast_v2.csv`, `docs/metrics_v2.csv`, `metrics_v2_peak.csv`, `metrics_v2_intervals.csv`, `backtest_v2.csv`, `feature_importance_v2.csv`, and the models with their metadata in `ml/models/`. It needs `data/processed/clusters.parquet` (from the eMARC data), so these files are produced on a machine that has the data: `python ml/train_v2.py`. The v1 model, its forecasts and every published number stay as they are; v2 is adopted only if its results justify it.
+Results on the eMARC test period (1,073 hours × 6 transformers, grid kW; `docs/metrics_v2.csv`, `docs/metrics_v2_peak.csv`):
+
+| Model | MAE (kW) | nRMSE (%) | Bias (kW) | Peak-hour MAE (kW) | Peak-hour bias (kW) |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| XGBoost, v1 features (control, retrained in the same run) | 21.38 | 25.27 | +0.07 | 42.70 | −40.76 |
+| XGBoost, v2 features | 21.38 | 25.26 | +0.04 | 42.65 | −40.75 |
+| Random Forest, v2 features | 21.64 | 25.63 | −0.03 | 43.34 | −41.66 |
+| XGBoost quantile model, median | 21.20 | 25.28 | −1.59 | 44.30 | −42.69 |
+| XGBoost v2, retrained every 7 days | 21.35 | 25.28 | −0.34 | 42.62 | −40.59 |
+| Same hour yesterday | 25.91 | 31.84 | −0.75 | 44.07 | −33.95 |
+
+The quantile model's P10–P90 band covers **75.9%** of actual values (`docs/metrics_v2_intervals.csv`), below the rolling conformal band's 78.3%, and only 70–72% for T4 and T5.
+
+**Decision: v1 stays the production model and the conformal band stays the interval method.** None of the challengers improves on the v1 feature set by more than 0.02 points of nRMSE, and Random Forest is worse. The ramp features carry little weight (`ramp_24h` 2.6%, `ramp_1h` 1.1% of the importance), and the two asset features carry none, because all six transformers here have the same rating and are all residential; they are kept for the synthetic city of Phase 7, where assets differ. Weekly retraining gains nothing over a 45-day test period. Every model, including the challengers, under-forecasts the peaks by about 41 kW: the shortfall comes from the data (peaks that yesterday's and last week's values do not announce), not from the model family, which is why the risk assessment relies on the P90 bound. A test (`test_v2_is_not_adopted_without_a_real_gain`) flags this decision for review if a rerun ever changes the picture.
+
+The script writes `data/forecast_v2.csv`, the tables above, `docs/backtest_v2.csv`, `docs/feature_importance_v2.csv`, and the models with their metadata in `ml/models/` (not committed, as they are reproducible). It needs `data/processed/clusters.parquet`; the committed tables are re-derived from `data/forecast_v2.csv` by a test, so they can be checked without the eMARC data.
+
+> **Reproducibility note:** retraining v1 from the same `clusters.parquet` on another machine gives a slightly different model (here early stopping chose 129 trees instead of the committed 121, with the same library versions; the same machine always gives the same result at any thread count). The committed model applied to the same data reproduces `data/forecast_all.csv` exactly, and the retrained one scores within 0.3 nRMSE points per transformer (pooled 25.29% vs 25.33%). The published numbers come from the committed model.
 
 ---
 
@@ -458,7 +475,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── forecast.csv           # Final held-out test predictions (interface contract)
     │   ├── forecast_all.csv       # Complete train/val/test predictions
     │   ├── forecast_intervals.csv # P10/P90 bounds for every test hour
-    │   ├── forecast_v2.csv        # v2 experiment forecasts (created by train_v2.py)
+    │   ├── forecast_v2.csv        # v2 experiment forecasts for the test period
     │   ├── scale_factors.json     # Normalization & grid scaling parameters
     │   └── twin.db                # Local database, created on first run (not in the repository)
     ├── docs/                      # Documentation artifacts & figures
@@ -467,7 +484,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── metrics_intervals.csv  # Interval coverage, pinball loss, width (static and rolling)
     │   ├── interval_calibration.csv # Static conformal ratios per transformer and block of the day
     │   ├── metrics_overload.csv   # Overload precision/recall per scenario (point vs P90)
-    │   ├── metrics_v2*.csv, backtest_v2.csv, feature_importance_v2.csv  # v2 experiments (created by train_v2.py)
+    │   ├── metrics_v2*.csv, backtest_v2.csv, feature_importance_v2.csv  # v2 experiment results
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
     │   ├── results_worst_hour.csv # Worst-hour peak reduction analysis
     │   ├── results_mitigation.csv # Hours with no full fix where a safe mitigation exists
@@ -575,7 +592,7 @@ python train_xgb.py
 python evaluate.py
 python intervals.py
 ```
-Or let `python cold_start.py` run whichever of these steps are needed. To run the v2 experiments (needs `data/processed/clusters.parquet`, takes a few minutes):
+Or let `python cold_start.py` run whichever of these steps are needed. A model retrained on another machine differs slightly from the committed one (see the reproducibility note under Forecasting v2), so the golden tests, which check the published numbers, will then report differences; `git checkout -- ml data docs` (from the `project` folder) restores the committed model, forecasts and tables. To rerun the v2 experiments (needs `data/processed/clusters.parquet`, about 30 s):
 ```bash
 python train_v2.py
 ```

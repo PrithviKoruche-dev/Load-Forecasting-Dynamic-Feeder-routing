@@ -1,0 +1,15 @@
+transformer,model,MAE_kW,RMSE_kW,nRMSE_%,MAPE_%,bias_kW,retrains
+T1,XGBoost v2 features,17.685,25.627,19.894,13.138,-1.007,7
+T1,"XGBoost v2, retrained every 7 d",17.587,25.584,19.861,13.005,-1.399,7
+T2,XGBoost v2 features,17.593,24.504,20.942,14.941,-0.086,7
+T2,"XGBoost v2, retrained every 7 d",17.595,24.727,21.133,14.888,-0.365,7
+T3,XGBoost v2 features,17.381,23.592,18.485,14.211,-0.103,7
+T3,"XGBoost v2, retrained every 7 d",17.367,23.575,18.472,14.165,-0.568,7
+T4,XGBoost v2 features,30.146,39.228,28.651,27.423,0.038,7
+T4,"XGBoost v2, retrained every 7 d",30.321,39.354,28.743,27.452,-0.065,7
+T5,XGBoost v2 features,21.135,27.295,31.356,35.62,-0.524,7
+T5,"XGBoost v2, retrained every 7 d",20.979,27.138,31.176,34.708,-1.172,7
+T6,XGBoost v2 features,24.318,32.631,32.819,37.358,1.89,7
+T6,"XGBoost v2, retrained every 7 d",24.257,32.604,32.792,37.168,1.562,7
+ALL,XGBoost v2 features,21.376,29.332,25.256,23.28,0.035,7
+ALL,"XGBoost v2, retrained every 7 d",21.351,29.354,25.275,23.102,-0.335,7
