@@ -43,7 +43,8 @@ ACTIONABLE = ("reroute", "restore", "mitigate")
 # audit-log severity of each event type (no_safe_option and recommendations are refined per event)
 SEVERITY = {"mode": "info", "recommendation": "info", "approved": "info", "applied": "info", "rejected": "info",
             "superseded": "info", "manual": "info", "rollback": "warning", "no_safe_option": "warning",
-            "emergency_stop": "critical", "emergency_stop_cleared": "warning"}
+            "emergency_stop": "critical", "emergency_stop_cleared": "warning",
+            "service": "info", "clock": "info"}       # background service and simulation clock (Phase 5)
 
 
 def _locked(fn):
@@ -429,6 +430,16 @@ class Controller:
         self.estopped = False
         self._event("emergency_stop_cleared", "Emergency stop cleared; mode stays Monitor only until changed", sim_time)
         self._save_state()
+
+    @_locked
+    def cancel_pending(self, reason):
+        """Cancel a pending proposal because its conditions changed (scenario, time jump, restart)."""
+        self._supersede(reason)
+
+    @_locked
+    def note(self, kind, message, sim_time=None, severity=None):
+        """Record an event that is not a decision (service start/stop, clock warnings)."""
+        return self._event(kind, message, sim_time, severity=severity)
 
     @property
     def can_rollback(self):

@@ -1,0 +1,6 @@
+scenario,mode,steps,forecast_tx_hours_over,reroutes,restores,mitigations,no_safe_option,switch_operations,hours_rerouted,measured_tx_hours_over_no_control,measured_tx_hours_over_with_control,reduction_%,measured_hours_over_100_no_control,measured_hours_over_100_with_control,mean_step_ms,wall_s
+S1 Normal day,auto,1073,0,0,0,0,0,0,0,0,0,,0,0,26.5,28.5
+S2 Heatwave (T1-T3 x1.6),auto,1073,5,5,5,0,0,20,5,41,37,9.8,10,8,27.7,29.8
+"S3 EV surge (T4 +200 kW, 18-22 h)",auto,1073,18,18,18,0,0,72,22,59,48,18.6,5,3,27.8,29.9
+S4 Severe stress (all x2.5),auto,1073,848,115,90,87,192,500,349,1177,1150,2.3,364,307,38.1,40.9
+S5 Edge case (T3 x4),auto,1073,543,51,62,12,481,250,867,803,554,31.0,566,349,48.2,51.8

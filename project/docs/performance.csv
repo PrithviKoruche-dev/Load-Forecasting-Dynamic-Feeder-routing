@@ -1,0 +1,45 @@
+metric,value,unit
+machine,"Linux 6.18.44-fc-v153, x86_64, 2 CPUs 7.8 GB RAM",
+python,3.13.17,
+step_measure_mean,0.236,ms
+step_measure_p95,0.293,ms
+step_measure_max,0.739,ms
+step_power_flow_mean,16.452,ms
+step_power_flow_p95,19.959,ms
+step_power_flow_max,34.155,ms
+step_forecast_mean,11.295,ms
+step_forecast_p95,11.968,ms
+step_forecast_max,20.872,ms
+step_detect_mean,0.389,ms
+step_detect_p95,0.36,ms
+step_detect_max,10.205,ms
+step_decide_mean,8.565,ms
+step_decide_p95,25.497,ms
+step_decide_max,34.409,ms
+step_record_mean,0.197,ms
+step_record_p95,0.246,ms
+step_record_max,7.796,ms
+step_total_mean,37.138,ms
+step_total_p95,57.855,ms
+step_total_max,66.122,ms
+steps,1073,steps
+scenario,S4 Severe stress (all x2.5),
+throughput,26.837,steps/s
+max_speed_factor,96937.045,simulated s per wall s
+simulated_year_wall_time_at_max,5.422,min
+accelerated_budget_per_60min_step,9863.014,ms
+accelerated_budget_per_15min_step,2465.753,ms
+accelerated_budget_used_60min,0.377,%
+memory_rss_before_engine,138.066,MB
+memory_rss_start,174.66,MB
+memory_rss_peak,176.168,MB
+memory_rss_end,176.168,MB
+memory_growth_per_1000_steps,1.405,MB
+database_growth_per_step,1.678,KB
+database_growth_per_simulated_year,14.354,MB
+clock_target_factor,36000.0,simulated s per wall s
+clock_interval,100.0,ms
+clock_achieved_factor,36022.735,simulated s per wall s
+clock_speed_error,0.063,%
+clock_wall_for_steps,2.928,s
+clock_expected_wall_for_steps,2.9,s

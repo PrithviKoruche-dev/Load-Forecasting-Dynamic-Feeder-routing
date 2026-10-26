@@ -13,7 +13,7 @@ from core.config import ConfigError
 
 def test_all_config_files_are_valid():
     config.reload()
-    for load in (config.grid, config.operations, config.scenarios, config.forecasting):
+    for load in (config.grid, config.operations, config.scenarios, config.forecasting, config.storage, config.simulation):
         assert isinstance(load(), dict)
 
 
@@ -58,6 +58,15 @@ BAD_EDITS = [
      "must leave room for a test split"),
     ("forecasting", lambda d: d["data"].update(start="1 June 2019"), config.forecasting, "must be a date"),
     ("forecasting", lambda d: d["clusters"].pop("T6"), config.forecasting, "cover exactly the grid transformers"),
+    ("simulation", lambda d: d["clock"].update(step_minutes=7), config.simulation, "divide a day into whole steps"),
+    ("simulation", lambda d: d["clock"].update(speed=-5), config.simulation, "clock.speed must be a positive number"),
+    ("simulation", lambda d: d["clock"].update(speed="fast"), config.simulation, "clock.speed must be a positive number"),
+    ("simulation", lambda d: d["clock"].update(start="tomorrow"), config.simulation, "clock.start must be test_start"),
+    ("simulation", lambda d: d["orchestrator"].update(scenario="S9"), config.simulation, "orchestrator.scenario must be one of"),
+    ("simulation", lambda d: d["orchestrator"].update(forecast_source="psychic"), config.simulation,
+     "forecast_source must be precomputed or live"),
+    ("simulation", lambda d: d["service"].update(stale_after_s=1), config.simulation,
+     "stale_after_s must be longer than service.heartbeat_s"),
 ]
 
 

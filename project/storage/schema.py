@@ -15,6 +15,10 @@ Tables and what they hold:
     alerts            risk and network alerts as they were observed
     controller_state  the controller's mode, configuration, emergency stop and undo stack
     model_registry    forecasting model versions (filled in Phase 4)
+    sim_state         the background service's clock, scenario, run number and heartbeat (Phase 5)
+    sim_steps         one row per completed simulation step: what was measured, forecast, decided and how long
+                      each stage took
+    commands          operator commands to the service (pause, resume, step, speed, approve, ...) and their results
 """
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Table,
                         Text, UniqueConstraint)
@@ -172,6 +176,61 @@ controller_state = Table("controller_state", metadata,
                          Column("undo", JSON, nullable=False),
                          Column("rec_seq", Integer, nullable=False),
                          Column("updated_at", String(30)))
+
+sim_state = Table("sim_state", metadata,
+                  Column("service", String(40), primary_key=True),
+                  Column("run_id", Integer, nullable=False),
+                  Column("clock", JSON, nullable=False),            # SimulationClock.state()
+                  Column("scenario", String(80), nullable=False),
+                  Column("forecast_source", String(20)),
+                  Column("status", String(20), nullable=False),     # running | paused | finished | stopped
+                  Column("note", Text),                            # e.g. why the clock paused itself
+                  Column("pid", Integer),
+                  Column("started_at", String(30)),
+                  Column("heartbeat_at", String(30)),
+                  Column("achieved_factor", Float),
+                  Column("lag_s", Float),
+                  Column("steps_done", Integer))
+
+sim_steps = Table("sim_steps", metadata,
+                  Column("id", Integer, primary_key=True, autoincrement=True),
+                  Column("service", String(40), nullable=False),
+                  Column("run_id", Integer, nullable=False),
+                  Column("sim_time", DateTime, nullable=False),
+                  Column("wall_time", String(30)),
+                  Column("scenario", String(80)),
+                  Column("mode", String(20)),
+                  Column("config_before", JSON),
+                  Column("config_after", JSON),
+                  Column("decision", String(20)),                   # skipped | reroute | restore | mitigate | ...
+                  Column("rec_id", String(20)),
+                  Column("forecast_max_pct", Float),                # forecast, configuration in force before deciding
+                  Column("forecast_over", Integer),                 # transformers above the threshold (forecast)
+                  Column("upper_max_pct", Float),
+                  Column("measured_max_pct", Float),                # measured, configuration in force during the hour
+                  Column("measured_over", Integer),
+                  Column("measured_over_normal", Integer),          # measured, normal configuration (no control)
+                  Column("measured_max_normal_pct", Float),
+                  Column("min_voltage_pu", Float),
+                  Column("losses_kw", Float),
+                  Column("risk", JSON),                             # {tx: risk class}
+                  Column("alerts", Integer),
+                  Column("timings_ms", JSON),                       # per stage
+                  Column("duration_ms", Float),
+                  UniqueConstraint("service", "run_id", "sim_time", name="uq_sim_step"))
+Index("ix_sim_steps_run", sim_steps.c.service, sim_steps.c.run_id, sim_steps.c.sim_time)
+
+commands = Table("commands", metadata,
+                 Column("id", Integer, primary_key=True, autoincrement=True),
+                 Column("service", String(40), nullable=False),
+                 Column("created_at", String(30)),
+                 Column("source", String(40)),                      # dashboard | cli | test
+                 Column("command", String(30), nullable=False),
+                 Column("args", JSON),
+                 Column("status", String(20), nullable=False),      # pending | done | refused | failed
+                 Column("result", Text),
+                 Column("done_at", String(30)))
+Index("ix_commands_pending", commands.c.service, commands.c.status, commands.c.id)
 
 model_registry = Table("model_registry", metadata,
                        Column("version", String(40), primary_key=True),

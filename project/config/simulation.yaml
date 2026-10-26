@@ -1,0 +1,34 @@
+# Simulation clock, closed-loop orchestrator and background service (Phase 5; gap items C2, C3, G10, G11).
+#
+# Simulated time and wall-clock time are separate. The clock advances simulated time in fixed steps and
+# paces them at `speed` simulated seconds per wall-clock second:
+#   speed: 3600          one simulated hour per second
+#   speed: accelerated   one simulated year in 24 hours (365x): a 15-minute step every 2.466 s,
+#                        a 60-minute step every 9.863 s
+#   speed: max           as fast as the computer allows (benchmarks, catching up a replay)
+
+clock:
+  start: test_start                 # first simulated time: test_start (first hour of the test period) or "YYYY-MM-DD HH:MM"
+  end: test_end                     # last simulated time: test_end, or "YYYY-MM-DD HH:MM"
+  step_minutes: 60                  # the real eMARC data is hourly; the synthetic city (Phase 7) will use 15
+  speed: 3600
+  accelerated_factor: 365           # what "accelerated" means: simulated seconds per wall second (1 year / 24 h)
+  catch_up: false                   # if a step overruns its slot: false = carry on from now at the same pace
+                                    # (the achieved speed drops and is reported); true = run steps back to back
+                                    # until the clock is on schedule again
+  behind_warning_s: 5               # log a "falling behind" event when the clock lags by more than this
+
+orchestrator:
+  controller: service               # the controller's name in the database (the replay dashboard uses "default")
+  scenario: S1 Normal day           # a benchmark scenario from scenarios.yaml (changeable at run time)
+  mode: recommend                   # monitor | recommend | auto at the first start (later restored from the database)
+  forecast_source: precomputed      # precomputed: the committed 24 h-ahead forecasts (reproducible anywhere)
+                                    # live: ml/forecaster.py forecast_at(t) every step (needs data/processed/clusters.parquet)
+  pause_on_recommendation: true     # recommend mode: pause the clock when a switching proposal awaits the operator,
+                                    # so it cannot go stale while the operator decides
+
+service:
+  poll_interval_s: 0.2              # how often commands are read while waiting for the next step
+  heartbeat_s: 2.0                  # how often the service writes its status
+  stale_after_s: 10                 # a service whose heartbeat is older than this is considered stopped
+  resume_on_start: true             # after a restart, continue in the state it was in (running or paused)

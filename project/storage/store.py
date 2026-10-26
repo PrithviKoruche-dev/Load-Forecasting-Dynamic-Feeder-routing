@@ -167,6 +167,17 @@ class Store:
                 c.execute(self._insert(S.forecast_quantiles, ignore=True), chunk)
         return len(rows) - have
 
+    def write_forecasts(self, rows, model_version, horizon_h=24):
+        """Insert forecasts issued at run time: rows of (target_time, asset_id, predicted_kw). Idempotent."""
+        created = _now()
+        data = [{"model_version": model_version, "target_time": pd.Timestamp(t).to_pydatetime(), "asset_id": a,
+                 "horizon_h": float(horizon_h), "predicted_kw": float(p), "status": "pending", "error_kw": None,
+                 "created_at": created} for t, a, p in rows]
+        if not data:
+            return 0
+        with self.engine.begin() as c:
+            return c.execute(self._insert(S.forecasts, ignore=True), data).rowcount
+
     def write_measurements(self, rows):
         """Bulk insert (in batches of storage.yaml batch_size); duplicates (time, asset, source) are skipped."""
         stmt = self._insert(S.measurements, ignore=True)
@@ -430,6 +441,78 @@ class Store:
             row = c.execute(select(S.controller_state)
                             .where(S.controller_state.c.controller == controller)).mappings().first()
         return dict(row) if row else None
+
+    # ------------------------------------------------------------------ simulation service (Phase 5)
+    def save_sim_state(self, service, **fields):
+        """Create or update the service's row (clock, scenario, status, heartbeat ...)."""
+        cols = [c.name for c in S.sim_state.columns if c.name != "service"]
+        unknown = set(fields) - set(cols)
+        if unknown:
+            raise ValueError(f"unknown sim_state fields: {sorted(unknown)}")
+        current = self.load_sim_state(service) or {}
+        row = {"service": service, **{c: current.get(c) for c in cols}, **fields}
+        stmt = self._insert(S.sim_state, upsert_keys=["service"], update_cols=cols)
+        with self.engine.begin() as c:
+            c.execute(stmt, [row])
+
+    def load_sim_state(self, service):
+        with self.engine.connect() as c:
+            row = c.execute(select(S.sim_state).where(S.sim_state.c.service == service)).mappings().first()
+        return dict(row) if row else None
+
+    def record_step(self, row):
+        """Store one completed simulation step. Idempotent: the same (service, run, time) is kept once."""
+        row = {**row, "sim_time": pd.Timestamp(row["sim_time"]).to_pydatetime()}
+        with self.engine.begin() as c:
+            return c.execute(self._insert(S.sim_steps, ignore=True), [row]).rowcount
+
+    def last_step_time(self, service, run_id):
+        with self.engine.connect() as c:
+            return c.execute(select(func.max(S.sim_steps.c.sim_time))
+                             .where(S.sim_steps.c.service == service, S.sim_steps.c.run_id == run_id)).scalar_one()
+
+    def steps(self, service, run_id=None, sim_from=None, sim_to=None, limit=None, newest_first=False):
+        s = S.sim_steps
+        q = select(s).where(s.c.service == service)
+        if run_id is not None:
+            q = q.where(s.c.run_id == run_id)
+        if sim_from is not None:
+            q = q.where(s.c.sim_time >= pd.Timestamp(sim_from).to_pydatetime())
+        if sim_to is not None:
+            q = q.where(s.c.sim_time <= pd.Timestamp(sim_to).to_pydatetime())
+        q = q.order_by(s.c.sim_time.desc() if newest_first else s.c.sim_time)
+        if limit:
+            q = q.limit(limit)
+        with self.engine.connect() as c:
+            return pd.DataFrame(c.execute(q).mappings().all())
+
+    def send_command(self, service, command, args=None, source="dashboard"):
+        """Queue a command for the service. Returns its id."""
+        with self.engine.begin() as c:
+            r = c.execute(insert(S.commands).values(service=service, created_at=_now(), source=source,
+                                                    command=command, args=args or {}, status="pending"))
+            return r.inserted_primary_key[0]
+
+    def pending_commands(self, service):
+        q = (select(S.commands).where(S.commands.c.service == service, S.commands.c.status == "pending")
+             .order_by(S.commands.c.id))
+        with self.engine.connect() as c:
+            return [dict(r) for r in c.execute(q).mappings().all()]
+
+    def finish_command(self, cmd_id, status, result=""):
+        with self.engine.begin() as c:
+            c.execute(update(S.commands).where(S.commands.c.id == cmd_id)
+                      .values(status=status, result=result, done_at=_now()))
+
+    def command(self, cmd_id):
+        with self.engine.connect() as c:
+            row = c.execute(select(S.commands).where(S.commands.c.id == cmd_id)).mappings().first()
+        return dict(row) if row else None
+
+    def commands(self, service, limit=50):
+        q = select(S.commands).where(S.commands.c.service == service).order_by(S.commands.c.id.desc()).limit(limit)
+        with self.engine.connect() as c:
+            return pd.DataFrame(c.execute(q).mappings().all())
 
     # ------------------------------------------------------------------ model registry (used from Phase 4)
     def register_model(self, version, kind, path, features=None, params=None, metrics=None, notes=None):

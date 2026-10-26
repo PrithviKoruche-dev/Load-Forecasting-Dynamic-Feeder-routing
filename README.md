@@ -21,6 +21,7 @@
 - [Physics-Constrained Rerouting Engine](#-physics-constrained-rerouting-engine)
 - [Stress Scenarios & Experimental Results](#-stress-scenarios--experimental-results)
 - [Operator Dashboard (Streamlit & Plotly)](#-operator-dashboard-streamlit--plotly)
+- [Closed-Loop Simulation Service](#-closed-loop-simulation-service)
 - [Configuration, Asset IDs & Logging](#-configuration-asset-ids--logging)
 - [Repository Structure](#-repository-structure)
 - [Getting Started & Installation](#-getting-started--installation)
@@ -81,6 +82,11 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - Forecasts, measured loads, every recommendation with all its candidates, every switch operation, alerts and the full event log are stored in a database.
   - The controller's mode, switch configuration, emergency stop, undo stack and pending recommendation survive a restart; a recommendation left pending can still be approved afterwards.
   - Filterable audit log (by day, transformer, event type and severity).
+
+- **🔁 Closed-Loop Simulation Service:**
+  - An orchestrator runs every module once per simulated hour (measure, power flow, forecast, detect, validate, apply or propose, record) as a background service, independent of any dashboard.
+  - Simulation clock with pause, resume, single step, jump, restart and variable speed, including an accelerated mode of one simulated year per 24 hours; the achieved speed is measured.
+  - All state in the database: the live dashboard and a command-line tool only send commands; a killed service restarts where it stopped and gives the same result.
 
 - **🔬 Comprehensive Scenario Verification:**
   - Validated across **1,073 continuous test hours** across 5 distinct operational scenarios: Normal Day, Feeder A Heatwave, EV Evening Surge, Severe Multi-Feeder Stress, and Extreme Single-Transformer Overload.
@@ -245,7 +251,7 @@ For every test hour and scenario, OpenDSS is solved three times (point forecast,
 | S4 Severe stress | point forecast | 69.1% | 57.2% |
 | S4 Severe stress | P90 bound | 43.0% | 89.7% |
 
-With the point forecast most real overloads in S2 and S3 are **missed**, a direct effect of the peak under-forecasting. Flagging on the P90 bound catches 80–97% of them at the cost of more false alarms. The dashboard therefore classes **forecast risk on the P90 loading** (`intervals.use_upper_for_risk` in `config/forecasting.yaml`); the rerouting decision itself still uses the point forecast.
+With the point forecast most real overloads in S2 and S3 are **missed**, a direct effect of the peak under-forecasting. Flagging on the P90 bound catches 80–97% of them at the cost of more false alarms. The dashboard therefore classes **forecast risk on the P90 loading** (`intervals.use_upper_for_risk` in `config/forecasting.yaml`). **Design decision:** the rerouting decision itself still uses the point forecast, so switching only happens for overloads the model actually predicts; the P90 bound raises warnings but never switches by itself. The closed-loop results below show what this choice costs.
 
 ### 7. Model Metadata, Registry and Cold Start
 - `ml/model_xgb.meta.json` records the model version (`xgb-24h-v1`), feature list, parameters, train/validation/test windows, test metrics and the SHA-256 of `model_xgb.json`. `ml/metadata.py` refuses to load a model whose file no longer matches its metadata; the dashboard registers the model in the database's `model_registry`.
@@ -366,6 +372,65 @@ The project includes an operator-grade web console built with **Streamlit** and 
 7. **Manual switching** of any LV move (and MV transfer when enabled); unsafe configurations (loops, unsupplied loads) are refused.
 8. **Audit log** (from the database, so it survives restarts), in four tabs: *Events* (filter by simulated day, transformer, event type and severity), *Recommendations* (with the candidates of any one), *Switching operations* and *Alerts*.
 
+This replay dashboard has its own controller and time slider. The live view of the simulation service (`app/live.py`) is described in the next section; Phase 6 merges both into one multi-page dashboard.
+
+---
+
+## 🔁 Closed-Loop Simulation Service
+
+The replay dashboard answers "what if?" for one hour at a time. The simulation service runs the whole system **hour after hour on a clock**, the way a deployed digital twin would, with every result written to the database.
+
+### One Step of the Loop (`sim/orchestrator.py`)
+Step *t* is the boundary at the end of hour *t*:
+
+| # | Stage | What happens |
+|:-:|:---|:---|
+| 1 | Measure | The meters' loads for hour *t* (scenario applied), which ran in the configuration then in force |
+| 2 | Power flow | OpenDSS on those loads in that configuration, and in the normal configuration (what would have happened without control) |
+| 3 | Forecast | The 24 h-ahead forecast for hour *t* + 1 (issued 23 h earlier) and its P90 bound; forecasts whose hour has passed are scored |
+| 4 | Detect | Risk classes for hour *t* (forecast against measurement) and voltage/line alerts from the measured state, stored as alerts |
+| 5 | Validate | If the next hour's forecast breaks a limit, or the network is not in its normal configuration, the controller evaluates the candidates |
+| 6 | Apply or propose | *monitor*: nothing; *recommend*: a proposal waits for the operator and the clock pauses so it cannot go stale; *auto*: applied before hour *t* + 1 begins |
+| 7 | Record | One `sim_steps` row: what was measured, forecast and decided, and how long each stage took |
+
+Deciding at the boundary means a switching change, automatic or approved, is in force for the whole hour it was computed for, and the next step measures its effect. Forecasts come from the committed file by default (`forecast_source: precomputed`, reproducible anywhere); with `live` the loop calls `forecast_at(t)` from `data/processed/clusters.parquet` at run time and issues each forecast 24 h ahead (a test checks that both give the same values).
+
+### Simulation Clock (`core/clock.py`, `config/simulation.yaml`)
+Simulated time and wall-clock time are separate. Controls: resume, pause, single step, jump to any hour, restart (a new run from the beginning) and speed: any factor (3600 = one simulated hour per second), `accelerated` (one simulated **year in 24 hours**, i.e. a 60-minute step every 9.863 s, or a 15-minute step every 2.466 s once the synthetic city of Phase 7 runs at 15 minutes) or `max`. The clock measures the speed it actually achieves. If a step overruns its slot, it carries on from the present at the same pace rather than bursting through the missed steps (`catch_up: true` changes that) and logs a "falling behind" event.
+
+### Background Service (`sim/service.py`)
+- Runs independently of any browser; **the database is the one authoritative state**: clock, run number, scenario and heartbeat (`sim_state`), every step (`sim_steps`), and the controller's mode, configuration, pending proposal and emergency stop.
+- It is steered only through **commands** written to the database (`commands` table): by the live dashboard (`app/live.py`) or from a terminal (`sim/control.py`). Commands are executed in order and each records its result or the reason it was refused (for example, approving a proposal after the scenario changed).
+- **Restart recovery:** after a crash or Ctrl+C, the next start continues with the step after the last one recorded. A test kills the service process part way through S3 and restarts it: every hour is recorded exactly once and the outcome equals the uninterrupted run.
+- Only one service per name runs at a time: a second one refuses to start while the first one's heartbeat is fresh.
+
+### Closed-Loop Results (`sim/closed_loop.py`, `docs/closed_loop.csv`)
+Each benchmark scenario run hour by hour in automatic mode over the 1,073 test hours. Unlike the per-hour benchmark above, a reroute stays in force until the controller restores the normal configuration, decisions are taken an hour ahead on the forecast, and the effect is judged on what the meters then measure:
+
+| Scenario | Reroutes / restores / mitigations | Switch operations | Measured transformer-hours > 85%: no control → with control | Reduction | Hours with a transformer > 100%: no control → with control |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| S1 Normal day | 0 / 0 / 0 | 0 | 0 → 0 | – | 0 → 0 |
+| S2 Heatwave | 5 / 5 / 0 | 20 | 41 → 37 | 9.8% | 10 → 8 |
+| S3 EV surge | 18 / 18 / 0 | 72 | 59 → 48 | 18.6% | 5 → 3 |
+| S4 Severe stress | 115 / 90 / 87 | 500 | 1,177 → 1,150 | 2.3% | 364 → 307 |
+| S5 Edge case | 51 / 62 / 12 | 250 | 803 → 554 | 31.0% | 566 → 349 |
+
+In monitor mode the loop sees exactly the forecast overloads of the published benchmark (22 transformer-hours in S3), which a test checks. The reductions are modest for S2 and S3 because the control can only act on overloads the point forecast predicts, and it predicts few of the real ones (recall 12–19%, see "Does the Forecast Catch Overloads?"). This is the measured cost of the design decision to switch on the point forecast only, and the motivation for the short-horizon forecasting of Phase 9.
+
+### Performance (`sim/benchmark.py`, `docs/performance.csv`)
+Measured on the busiest scenario (S4, automatic mode, 1,073 steps; a 2-CPU Linux container):
+
+| Measure | Value |
+|:---|:---|
+| Step time, mean / 95th percentile | 37 ms / 58 ms (power flow 16 ms, forecast and scoring 11 ms, decision 9 ms) |
+| Throughput | 27 steps/s: a simulated year of hourly steps in about 5.4 minutes |
+| Accelerated mode (1 year per 24 h) | uses 0.4% of the 9.86 s budget per hourly step (2.47 s per 15-minute step later) |
+| Clock accuracy at 36,000× | achieved 36,023× (0.06% error) |
+| Memory | 176 MB resident; growth about 1.4 MB per 1,000 steps |
+| Database growth | about 1.7 KB per step, about 14 MB per simulated year |
+
+Run `python sim/benchmark.py` to measure your own computer.
+
 ---
 
 ## 🧩 Configuration, Asset IDs & Logging
@@ -380,6 +445,7 @@ Every setting that used to be a constant in the code now lives in one of four YA
 | `scenarios.yaml` | Benchmark S1–S5, the quick flat-load scenarios and the dashboard presets — defined once |
 | `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target, interval method and window, v2 experiment settings |
 | `storage.yaml` | Database URL (SQLite file by default), batch size, retention, labels for the imported forecasts |
+| `simulation.yaml` | Simulation clock (range, step, speed, accelerated factor, catch-up), orchestrator (scenario, first mode, forecast source, pause on recommendation) and service settings (polling, heartbeat) |
 
 `network.dss` still holds the electrical model that OpenDSS solves; tests check that `grid.yaml` agrees with it (transformers, ratings, buses, loads, switch states and the buses each move connects). Set `LFDR_CONFIG_DIR` to point the whole project at another config folder.
 
@@ -410,13 +476,15 @@ On first start the dashboard creates `project/data/twin.db` (SQLite), imports `d
 | `actions` | Every switch operation executed: who/what triggered it (operator, auto, manual, rollback, reset) |
 | `events`, `event_assets` | The audit log with severity, and which transformers and switches each event concerns |
 | `alerts` | Risk and voltage/line alerts as they were observed |
-| `controller_state` | Mode, configuration, emergency stop and undo stack |
+| `controller_state` | Mode, configuration, emergency stop and undo stack (one row per controller: `default` for the replay dashboard, `service` for the simulation service) |
+| `sim_state`, `sim_steps` | The simulation service's clock, run, scenario and heartbeat; one row per completed step |
+| `commands` | Commands to the service and their results |
 | `model_registry` | Forecasting model versions with features, windows, metrics and file hash |
 
 To use PostgreSQL instead, set `url` in `config/storage.yaml` (or the `LFDR_DB_URL` environment variable) to e.g. `postgresql+psycopg://user:password@localhost:5432/feeder` and `pip install "psycopg[binary]"`. The code uses SQLAlchemy Core and dialect-aware inserts, so nothing else changes.
 
 ### Logging
-`core/logging_setup.py` gives every module the same log format. Set `LFDR_LOG_LEVEL=DEBUG` to see each rerouting decision, or `LFDR_LOG_FILE=path` to also write a file. The dashboard always writes `logs/dashboard.log`.
+`core/logging_setup.py` gives every module the same log format. Set `LFDR_LOG_LEVEL=DEBUG` to see each rerouting decision, or `LFDR_LOG_FILE=path` to also write a file. The dashboard always writes `logs/dashboard.log`, the simulation service `logs/service.log`.
 
 ---
 
@@ -434,7 +502,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── operations.yaml        # Overload threshold, voltage/line limits, dashboard bands
     │   ├── scenarios.yaml         # Benchmark, quick and dashboard scenarios (defined once)
     │   ├── forecasting.yaml       # Data window, cleaning rules, clusters, split, model settings
-    │   └── storage.yaml           # Database URL, batch size, retention
+    │   ├── storage.yaml           # Database URL, batch size, retention
+    │   └── simulation.yaml        # Simulation clock, orchestrator and service settings
     ├── storage/                   # Database layer
     │   ├── schema.py              # Tables (SQLAlchemy Core; SQLite or PostgreSQL)
     │   └── store.py               # Store: every read and write of the database
@@ -442,11 +511,20 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── config.py              # Loads and validates config/*.yaml
     │   ├── ids.py                 # Asset ID registry (SUB-001, FD-001, DT-001, SW-001, MTR-00001)
     │   ├── scenarios.py           # The one scenario implementation (benchmark, script, dashboard)
+    │   ├── clock.py               # Simulation clock: pause, resume, step, speed, accelerated mode
     │   ├── logging_setup.py       # Project-wide logging
     │   └── paths.py               # Folder locations
     ├── app/                       # Streamlit web application & visualization
     │   ├── app.py                 # Main operator dashboard entry point
-    │   └── plots.py               # Plotly network topology & load curve renderers
+    │   ├── plots.py               # Plotly network topology & load curve renderers
+    │   └── live.py                # Live view of the simulation service (reads the database, sends commands)
+    ├── sim/                       # Closed-loop simulation (Phase 5)
+    │   ├── orchestrator.py        # One step: measure, power flow, forecast, detect, validate, apply, record
+    │   ├── sources.py             # Demand and forecast sources (classic eMARC data; precomputed or live forecasts)
+    │   ├── service.py             # Background service: clock, commands, heartbeat, restart recovery
+    │   ├── control.py             # Command-line control of the service (status, pause, speed, approve, ...)
+    │   ├── closed_loop.py         # Closed-loop results for S1-S5 -> docs/closed_loop.csv
+    │   └── benchmark.py           # Step time, throughput, memory, clock accuracy -> docs/performance.csv
     ├── grid/                      # Power systems simulation & reconfiguration
     │   ├── engine.py              # GridEngine: OpenDSS power flow, switching actions, rerouting search
     │   ├── risk.py                # Five risk classes, voltage/line alerts, recommendation confidence
@@ -488,6 +566,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── results.csv            # S1-S5 scenario summary over 1,073 hours
     │   ├── results_worst_hour.csv # Worst-hour peak reduction analysis
     │   ├── results_mitigation.csv # Hours with no full fix where a safe mitigation exists
+    │   ├── closed_loop.csv        # S1-S5 run hour by hour in automatic mode: measured overloads without/with control
+    │   ├── performance.csv        # Step time per stage, throughput, memory, database growth, clock accuracy
     │   ├── archive/               # Superseded result tables, with an explanation
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
     ├── tests/                     # Automated pytest suite (see "Running the Tests")
@@ -502,6 +582,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_decisions.py      # Modes, approval, stale proposals, rollback, emergency stop
     │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto, restart
     │   ├── test_storage.py        # Schema, imports, filters, batching, retention, restart restores everything
+    │   ├── test_simulation.py     # Clock, orchestrator, service commands, kill-and-restart recovery, live view, benchmark
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
@@ -597,11 +678,35 @@ Or let `python cold_start.py` run whichever of these steps are needed. A model r
 python train_v2.py
 ```
 
-### 5. Running the Tests
+### 5. Run the Closed-Loop Simulation Service
+Two terminals, both in `project/`:
+```bash
+python sim/service.py                     # terminal 1: the service (Ctrl+C stops it; starting it again resumes)
+streamlit run app/live.py                 # terminal 2: the live view, at http://localhost:8501
+```
+Useful options: `--speed accelerated` (one simulated year per 24 h), `--speed max`, `--mode auto`, `--scenario "S3 EV surge (T4 +200 kW, 18-22 h)"`, `--forecast live` (needs `data/processed/clusters.parquet`), `--paused`, `--new-run`. While it runs, it can also be steered from any terminal:
+```bash
+python sim/control.py status
+python sim/control.py pause                # resume | step | restart | stop
+python sim/control.py speed 86400          # one simulated day per second
+python sim/control.py jump "2020-02-29 18:00"
+python sim/control.py mode auto            # monitor | recommend | auto
+python sim/control.py approve REC-0001     # reject REC-0001
+python sim/control.py steps 10             # the last 10 steps
+```
+In recommend mode the clock pauses itself when a switching proposal is waiting; approving or rejecting it (on the live page or with `control.py`) lets the clock run on.
+
+The report tables are produced by:
+```bash
+python sim/closed_loop.py                  # docs/closed_loop.csv (about 3 min)
+python sim/benchmark.py                    # docs/performance.csv (about 1 min, numbers depend on the computer)
+```
+
+### 6. Running the Tests
 ```bash
 cd project
-python -m pytest                  # full suite, about 3 min (benchmark, overload scoring, v2 training, cold start)
-python -m pytest -m "not slow"    # everything except those, about 35 s
+python -m pytest                  # full suite, about 5 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
+python -m pytest -m "not slow"    # everything except those, about 45 s
 ```
 `python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the app headless and drive it through the S3 and S4 worst hours.
 

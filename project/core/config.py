@@ -38,7 +38,7 @@ def config_dir():
 def reload():
     """Forget cached files (after changing LFDR_CONFIG_DIR or editing a file at runtime)."""
     _read.cache_clear()
-    for fn in (grid, operations, scenarios, forecasting, storage):
+    for fn in (grid, operations, scenarios, forecasting, storage, simulation):
         fn.cache_clear()
 
 
@@ -297,6 +297,44 @@ def storage():
     _need(isinstance(_get(c, f, "forecast_import", "model_version"), str), f, "forecast_import.model_version is required")
     _need(isinstance(_get(c, f, "forecast_import", "measurement_source"), str), f,
           "forecast_import.measurement_source is required")
+    return c
+
+
+TIME_RE = r"\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?"
+
+
+@lru_cache(maxsize=None)
+def simulation():
+    f = "simulation"
+    c = _read(f)
+    for k in ("start", "end"):
+        v = _get(c, f, "clock", k)
+        _need(v in (f"test_{k}",) or (isinstance(v, str) and re.fullmatch(TIME_RE, v)), f,
+              f"clock.{k} must be test_{k} or a time like 2020-02-21 06:00, got {v!r}")
+    step = _number(c, f, "clock", "step_minutes", low=1)
+    _need(float(step).is_integer() and 1440 % int(step) == 0, f,
+          f"clock.step_minutes must divide a day into whole steps (e.g. 15, 30, 60), got {step}")
+    speed = _get(c, f, "clock", "speed")
+    _need(speed in ("max", "accelerated") or (isinstance(speed, (int, float)) and not isinstance(speed, bool)
+                                               and speed > 0), f,
+          f"clock.speed must be a positive number, 'accelerated' or 'max', got {speed!r}")
+    _number(c, f, "clock", "accelerated_factor", low=0, low_open=True)
+    _need(isinstance(_get(c, f, "clock", "catch_up"), bool), f, "clock.catch_up must be true or false")
+    _number(c, f, "clock", "behind_warning_s", low=0)
+    o = _get(c, f, "orchestrator")
+    _need(isinstance(o.get("controller"), str) and o["controller"], f, "orchestrator.controller is required")
+    names = [s["name"] for s in scenarios()["benchmark"]]
+    _need(o.get("scenario") in names, f, f"orchestrator.scenario must be one of {names}, got {o.get('scenario')!r}")
+    _need(o.get("mode") in ("monitor", "recommend", "auto"), f,
+          f"orchestrator.mode must be monitor, recommend or auto, got {o.get('mode')!r}")
+    _need(o.get("forecast_source") in ("precomputed", "live"), f,
+          f"orchestrator.forecast_source must be precomputed or live, got {o.get('forecast_source')!r}")
+    _need(isinstance(o.get("pause_on_recommendation"), bool), f, "orchestrator.pause_on_recommendation must be true or false")
+    for k in ("poll_interval_s", "heartbeat_s", "stale_after_s"):
+        _number(c, f, "service", k, low=0, low_open=True)
+    _need(c["service"]["stale_after_s"] > c["service"]["heartbeat_s"], f,
+          "service.stale_after_s must be longer than service.heartbeat_s")
+    _need(isinstance(_get(c, f, "service", "resume_on_start"), bool), f, "service.resume_on_start must be true or false")
     return c
 
 
