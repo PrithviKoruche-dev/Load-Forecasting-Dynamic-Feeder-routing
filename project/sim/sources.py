@@ -192,13 +192,8 @@ class CitySource:
         if self.meters is None:
             return self.table
         if self._history is None:
-            h = self.meters.transformer_series(self.demand.matrix(self.events))[self.transformers]
-            day = int(pd.Timedelta(days=1) / self.resolution)
-            for _ in range(7):
-                if not h.isna().any().any():
-                    break
-                h = h.fillna(h.shift(day))
-            self._history = h.ffill().bfill()
+            from meters import observed_history
+            self._history = observed_history(self.meters, self.demand.matrix(self.events))[self.transformers]
         return self._history
 
     def observe(self, t, substitute=None):
@@ -290,13 +285,14 @@ class PersistenceForecasts:
     transformer meters, Phase 8; gaps filled from the day before that), with a P10-P90 band
     by rolling conformal calibration (config forecasting.yaml intervals: the ratio actual / forecast over the
     last window_days, per transformer and block of the day, using only loads known at issue time t - 24 h).
-    Phase 9 replaces it with a model trained on the simulator's history."""
+    Phase 9 adds a short-horizon model trained on the simulator's history (ShortHorizonForecasts)."""
     name = "persistence"
+    VERSION = "persistence-24h"
 
     def __init__(self, store, demand):
         from core import config
         self.store, self.demand = store, demand
-        self.model_version = store.import_cfg["model_version"]
+        self.model_version = self.VERSION
         self.cfg = config.forecasting()["intervals"]
         self._key = None
 
@@ -359,6 +355,63 @@ class PersistenceForecasts:
         return 1
 
 
+class ShortHorizonForecasts:
+    """The short-horizon forecast of a synthetic city (Phase 9, ml/short_horizon.py): every transformer's load
+    one step ahead, made at the end of each step from what the transformer meters recorded up to then, the
+    weather forecast and the calendar, with a P10-P90 band. point(t) is the forecast for t made one step
+    before it; the switching decision at the end of step t uses point(t + 1)."""
+    name = "short"
+
+    def __init__(self, store, demand):
+        sys.path.insert(0, str(ROOT / "ml"))
+        from short_horizon import ShortModel
+        self.store, self.demand = store, demand
+        self.model = ShortModel(demand.city)
+        self.model_version = self.model.version
+        self.horizon = self.model.horizon * demand.resolution
+        self._key = None
+
+    def _refresh(self):
+        if self._key == self.demand.events:
+            return
+        hist = getattr(self.demand, "history", self.demand.table)
+        self.point_, self.lower_, self.upper_ = self.model.tables(self.demand.demand, hist, self.demand.events)
+        self._key = self.demand.events
+
+    _row = staticmethod(PersistenceForecasts._row)
+
+    def point(self, t):
+        self._refresh()
+        return self._row(self.point_, t)
+
+    def upper(self, t):
+        self._refresh()
+        return self._row(self.upper_, t)
+
+    def lower(self, t):
+        self._refresh()
+        return self._row(self.lower_, t)
+
+    def issue(self, now):
+        """At the end of step `now` the forecast for `now + horizon` is made: store it, with its band."""
+        self._refresh()
+        target = pd.Timestamp(now) + self.horizon
+        p = self._row(self.point_, target)
+        if p is None:
+            return 0
+        h = self.horizon / pd.Timedelta(hours=1)
+        aid = {tx: ids.transformer_id(tx) for tx in p}
+        self.store.write_forecasts([(target, aid[tx], kw) for tx, kw in p.items()], self.model_version, horizon_h=h)
+        q = self.model.meta["band_quantiles"]
+        rows = []
+        for qq, table in ((q[0], self.lower_), (q[1], self.upper_)):
+            b = self._row(table, target)
+            if b:
+                rows += [(target, aid[tx], qq, kw) for tx, kw in b.items()]
+        self.store.write_quantiles(rows, self.model_version, "conformal (calibration month)", horizon_h=h)
+        return 1
+
+
 def forecast_source(kind, store, frame=None, demand=None, **kw):
     if kind == "precomputed":
         return PrecomputedForecasts(store, frame)
@@ -366,4 +419,6 @@ def forecast_source(kind, store, frame=None, demand=None, **kw):
         return LiveForecasts(store, frame, **kw)
     if kind == "persistence":
         return PersistenceForecasts(store, demand)
+    if kind == "short":
+        return ShortHorizonForecasts(store, demand)
     raise ValueError(f"unknown forecast source {kind!r}")

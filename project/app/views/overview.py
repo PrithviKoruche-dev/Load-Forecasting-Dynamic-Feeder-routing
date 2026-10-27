@@ -71,13 +71,13 @@ def body():
                f"{C.DECISIONS.get(last['decision'], last['decision'])}"
                + (f" ({last['rec_id']})" if last.get("rec_id") else ""))
 
-    hist = C.run_steps(state, limit=48)
+    hist = C.run_steps(state, limit=48 * C.PER_HOUR)
     if not hist.empty:
         st.subheader("Last 48 simulated hours")
         st.plotly_chart(plots.lines_chart(
             hist["sim_time"], [("measured peak, no control", hist["measured_max_normal_pct"], "#8a8f98", "dot"),
                                ("measured peak, with control", hist["measured_max_pct"], "#1f77b4", None),
-                               ("forecast peak (next hour)", hist["forecast_max_pct"], "#ff7f0e", None)],
+                               (f"forecast peak (next {C.STEP})", hist["forecast_max_pct"], "#ff7f0e", None)],
             threshold=thr, y_title="peak transformer loading %"), key="overview_chart")
 
 

@@ -11,7 +11,7 @@ orchestrator:
   controller: service
   scenario: C1 Normal year
   mode: recommend
-  forecast_source: persistence
+  forecast_source: short
   pause_on_recommendation: true
 service:
   poll_interval_s: 0.2

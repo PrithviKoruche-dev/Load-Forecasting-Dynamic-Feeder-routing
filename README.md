@@ -24,6 +24,7 @@
 - [Closed-Loop Simulation Service](#-closed-loop-simulation-service)
 - [Synthetic City (Phase 7)](#-synthetic-city-phase-7)
 - [Meters and Data Quality (Phase 8)](#-meters-and-data-quality-phase-8)
+- [Short-Horizon Forecast (Phase 9)](#-short-horizon-forecast-phase-9)
 - [Configuration, Asset IDs & Logging](#-configuration-asset-ids--logging)
 - [Repository Structure](#-repository-structure)
 - [Getting Started & Installation](#-getting-started--installation)
@@ -94,7 +95,8 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
 - **🏙 Synthetic City:**
   - A generated city of 3 substations, 8 feeders and 44 transformers serving 5,083 households, shops, offices, mixed-use buildings and factories, each with a meter, built from one YAML file and a seed.
   - 15-minute demand for a whole year from consumer profiles (households calibrated on the eMARC data), weekdays, holidays, seasons and weather; heatwaves, EV charging and festivals are events in the city's demand.
-  - Runs through the same engine, service and dashboard (`--city demo`), within 6% of the accelerated mode's time budget.
+  - Runs through the same engine, service and dashboard (`--city demo`), within 7% of the accelerated mode's time budget.
+  - A 15-minute-ahead forecast trained on the city's own recorded history (nRMSE about 4% against 22% for 24 h persistence) doubles the overloads the control removes under EV charging and catches the heatwave.
   - Separate measurement streams: transformer meters that fail, smart meters whose readings arrive late, get lost or come from stuck meters, and a head-end that estimates, flags and revises. The operator decides on what was measured; outcomes are judged on the true loads.
 
 - **🔬 Comprehensive Scenario Verification:**
@@ -483,10 +485,10 @@ Every transformer's load at **15-minute** resolution for a whole year (35,040 st
 - **Events** change the demand itself rather than scaling a forecast: `diwali_lights` (always on: households use 25% more in the evening for five days), `may_heatwave` (+6 °C for nine days, acting through every cooling term) and `ev_adoption` (15% of households charge a 3.3 kW car in the evening, about 7 kWh a day). Scenarios switch events on: **C1** normal year, **C2** May heatwave, **C3** EV adoption, **C4** both. The weather and the noise do not depend on the events, so scenarios differ only where their events act (tested).
 
 ### Forecast in the City
-The XGBoost model was trained on the six eMARC clusters, so the city starts with a transparent baseline: the **24 h-ahead persistence forecast** (the load at the same time the day before), with a P10–P90 band from the same rolling conformal calibration as Phase 4, using only loads known at issue time (tested by changing every later load). The service writes each step's meter readings and issues the forecast for 24 h later, so the Forecasting page scores them as time passes. Since Phase 8 the forecast is built from what the transformer meters recorded, not from the true loads (see below). Phase 9 replaces it with a short-horizon model trained on the simulator's own history.
+The XGBoost model was trained on the six eMARC clusters, so the city starts with a transparent baseline: the **24 h-ahead persistence forecast** (the load at the same time the day before), with a P10–P90 band from the same rolling conformal calibration as Phase 4, using only loads known at issue time (tested by changing every later load). The service writes each step's meter readings and issues the forecast for 24 h later, so the Forecasting page scores them as time passes. Since Phase 8 the forecast is built from what the transformer meters recorded, not from the true loads. Phase 9 replaced it for the switching decisions with a 15-minute-ahead model trained on the city's own recorded history (see Short-Horizon Forecast); persistence stays available (`forecast_source: persistence`).
 
-### City Results (`docs/closed_loop_city_demo.csv`)
-May (the peak month, 2,976 steps of 15 minutes), automatic mode, closed loop as in Phase 5, with the operator seeing the loads through the city's meters (Phase 8; outcomes are judged on the true loads):
+### City Results with the Persistence Forecast
+May (the peak month, 2,976 steps of 15 minutes), automatic mode, closed loop as in Phase 5, with the operator seeing the loads through the city's meters (Phase 8; outcomes are judged on the true loads) and the 24 h persistence forecast deciding the switching (`docs/closed_loop_city_demo_persistence.csv`; the short-horizon forecast of Phase 9 is the default now, results in its section):
 
 | Scenario | Reroutes / restores / mitigations | Switch operations | Measured transformer-steps > 85%: no control → with control | Reduction | Steps with a transformer > 100% | Forecast nRMSE | P10–P90 coverage |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -495,7 +497,7 @@ May (the peak month, 2,976 steps of 15 minutes), automatic mode, closed loop as 
 | C3 EV adoption (15% of households) | 119 / 33 / 18 | 552 | 485 → 323 | 33.4% | 1 → 1 | 20.9% | 80.3% |
 | C4 Heatwave and EV adoption | 122 / 40 / 59 | 800 | 1,031 → 838 | 18.7% | 17 → 11 | 22.0% | 79.6% |
 
-The P10–P90 band is well calibrated (about 80% coverage in every scenario), and the control removes a third of the overloads where they come back every day (EV charging), but **almost none in the heatwave**: persistence cannot foresee the first hot day (on 8 May none of the 122 overloaded steps was forecast, Phase 7) and then expects yesterday's overloads at the wrong times. The point forecast decides the switching (the design decision recorded under Forecasting), so a forecast that follows the weather is what the city needs most: Phase 9.
+The P10–P90 band is well calibrated (about 80% coverage in every scenario), and the control removes a third of the overloads where they come back every day (EV charging), but **almost none in the heatwave**: persistence cannot foresee the first hot day (on 8 May none of the 122 overloaded steps was forecast, Phase 7) and then expects yesterday's overloads at the wrong times. The point forecast decides the switching (the design decision recorded under Forecasting), so a forecast that follows the weather is what the city needs most. Phase 9 provides it.
 
 ### Running the City
 ```bash
@@ -504,22 +506,24 @@ python city/generate.py demo                                  # only after editi
 python sim/service.py --city demo                             # or start it from the dashboard
 streamlit run app/app.py -- --city demo                       # the dashboard for the city (note the --)
 python sim/control.py status --city demo                      # every control.py command takes --city
+python ml/train_short.py --city demo                          # the short-horizon forecast (about 1 min)
 python sim/closed_loop.py --city demo                         # docs/closed_loop_city_demo.csv (about 25 min)
+python sim/closed_loop.py --city demo --forecast persistence  # docs/closed_loop_city_demo_persistence.csv
 python sim/closed_loop.py --city demo --data-quality          # docs/data_quality_city_demo.csv (about 50 min)
 python sim/benchmark.py --city demo                           # docs/performance_city_demo.csv
 ```
 The city has its own database (`data/city_demo.db`), so its runs never mix with the classic network's. The dashboard pages work unchanged (the Network page draws the city's 44 transformers, 8 feeders and ties from the layout in `grid.yaml`); the what-if replay sandbox, which replays the eMARC forecasts, is not shown for a city.
 
 ### City Performance (`docs/performance_city_demo.csv`)
-One busy week (heatwave and EV adoption, 672 steps of 15 minutes, automatic mode, with the meters of Phase 8) on the same 2-CPU container (Phase 7, without meters: 104 ms per step):
+One busy week (heatwave and EV adoption, 672 steps of 15 minutes, automatic mode, with the meters of Phase 8 and the short-horizon forecast of Phase 9) on the same 2-CPU container (Phase 7, without meters: 104 ms per step):
 
 | Measure | Value |
 |:---|:---|
-| Step time, mean / 95th percentile | 143 ms / 313 ms (meters 19 ms, power flow 54 ms, forecast and scoring 31 ms, decision 37 ms) |
-| Throughput | 7.0 steps/s: a simulated year of 15-minute steps in about 83 minutes |
-| Accelerated mode (1 year per 24 h) | uses 5.8% of the 2.47 s budget per 15-minute step |
-| Memory | about 366 MB; flat once the head-end's 48-hour window has filled (1,500 steps checked) |
-| Database | about 112 KB per step before retention; the city keeps 60 days of measurements, alerts and forecasts and 2 days of smart-meter readings (`storage.yaml retention`, applied by the service once per simulated day), and only switch positions away from normal are stored with each step |
+| Step time, mean / 95th percentile | 152 ms / 328 ms (meters 30 ms, including building the year's short-horizon forecast once per scenario, about 7 s; power flow 53 ms; forecast and scoring 31 ms; decision 37 ms) |
+| Throughput | 6.6 steps/s: a simulated year of 15-minute steps in about 89 minutes |
+| Accelerated mode (1 year per 24 h) | uses 6.2% of the 2.47 s budget per 15-minute step |
+| Memory | peak about 560 MB while the forecast table is built, then flat (about 2 MB per 1,000 steps after warm-up, 1,500 steps checked in Phase 8) |
+| Database | about 110 KB per step before retention; the city keeps 60 days of measurements, alerts and forecasts and 2 days of smart-meter readings (`storage.yaml retention`, applied by the service once per simulated day), and only switch positions away from normal are stored with each step |
 
 Most of the power-flow time is OpenDSS recompiling the circuit before every evaluation (6.5 of 11.4 ms on the city); keeping the circuit loaded between evaluations is the obvious next speed-up if a faster-than-hourly city is needed.
 
@@ -565,8 +569,8 @@ The new **Data quality** page shows:
 
 The **Transformers** page now shows the loading the operator saw, with its source and the true loading beside it.
 
-### Perfect Measurement against the Meters (`docs/data_quality_city_demo.csv`)
-May, automatic mode, each scenario run twice: once with the operator seeing the true loads, once through the meters.
+### Perfect Measurement against the Meters (`docs/data_quality_city_demo_persistence.csv`)
+May, automatic mode, the persistence forecast of Phase 8, each scenario run twice: once with the operator seeing the true loads, once through the meters. (With the Phase 9 forecast: `docs/data_quality_city_demo.csv`, below.)
 
 | Scenario | Switch operations: perfect → meters | Transformer-steps > 85%, with control: perfect → meters (no control) | Seen error, mean / 99th pct (points) | Overloads missed / false |
 |:---|:---:|:---:|:---:|:---:|
@@ -584,11 +588,72 @@ In every scenario, 686 of the 130,944 transformer-steps (0.5%) had no transforme
 
 A deadband on rerouting and restoring (act at 85%, restore only below, say, 80%) would remove most of this switching wear, and is noted for Phase 10.
 
+**With the short-horizon forecast of Phase 9** (`docs/data_quality_city_demo.csv`), the meters cost a little more in outcome and less in switching. Transformer-steps above 85% with control, perfect → meters:
+- C1: 33 → 34
+- C2: 261 → 263
+- C3: 178 → 186
+- C4: 619 → 628
+
+Switch operations, perfect → meters:
+- C1: 140 → 140
+- C2: 304 → 360
+- C3: 516 → 552
+- C4: 708 → 800
+
+A forecast that starts from the last reading reacts to the meter error at once instead of a day later.
+
 **Limits of the model:**
 - Every transformer has a meter, so the smart meters only fill gaps. A network metered by smart meters alone would depend much more on the head-end's estimates.
 - Delays are independent from meter to meter, apart from concentrator outages.
 - Consumer readings are the consumer's share of the transformer's load rather than separately simulated appliances.
 - Clock errors, tampering and theft are not modelled.
+
+
+---
+
+## 🎯 Short-Horizon Forecast (Phase 9)
+
+The switching decision taken at the end of a step is for the next step only. The persistence forecast answers that question with yesterday's load, made 24 hours earlier, so it cannot see a heatwave coming and expects yesterday's peaks at yesterday's times. Phase 9 forecasts the next 15 minutes instead, at the end of each step (`ml/short_horizon.py`), from:
+- **what the operator has recorded** (the transformer meters of Phase 8, up to now): the last readings, the last 4 hours, the same time yesterday and a week ago;
+- **the weather forecast** for the target time (the true temperature plus a forecast error of 0.5 °C, `city.yaml forecast.temperature_error_c`);
+- **the calendar** (time of day, weekday / Saturday / Sunday or holiday);
+- **the transformer's consumer mix** (shares of residential, commercial, industrial and mixed-use).
+
+One XGBoost model serves all 44 transformers. It works on loads divided by each transformer's mean and predicts the change from the last reading. It never sees a true load, only the recorded ones.
+- **Training data** (`python ml/train_short.py --city demo`): 8 January to 31 March, recorded histories of C1 and C3. C2 and C4 differ from them only from May, so they add nothing before it.
+- **Calibration:** April stops the training and sets the P10–P90 band, per 4-hour block of the day.
+- **Test:** May, with its heatwave, never seen in training.
+
+The model is committed (`cities/demo/forecast/`); the service uses it when `forecast_source: short` (the city's default now). Forecasts are stored with a 0.25 h horizon as `short-15m-v1`, and the Forecasting page scores them as time passes.
+
+### Accuracy in May (`docs/forecast_short_city_demo.csv`)
+Scored against the true loads:
+
+| Scenario | nRMSE: model / last value / persistence 24 h | Heatwave days | 10% highest loads | Model P10–P90 coverage |
+|:---|:---:|:---:|:---:|:---:|
+| C1 Normal year | **3.7%** / 5.3% / 21.4% | 3.7% / 5.3% / 23.2% | 3.1% / 3.2% / 20.7% | 78.5% |
+| C2 May heatwave | **4.1%** / 5.6% / 22.4% | 4.7% / 6.0% / 25.2% | 3.2% / 3.3% / 22.6% | 72.7% |
+| C3 EV adoption | **3.6%** / 5.5% / 20.9% | 3.6% / 5.5% / 22.7% | 3.1% / 3.5% / 18.9% | 78.1% |
+| C4 Heatwave and EV adoption | **4.0%** / 5.7% / 22.0% | 4.6% / 6.1% / 24.6% | 3.2% / 3.5% / 21.1% | 72.5% |
+
+"Last value" is the simplest short-horizon forecast: the reading just taken. Most of the gain over persistence comes from forecasting 15 minutes ahead instead of 24 hours. The model takes another 25–35% off the error of the last value by anticipating the ramps: the time of day carries the most weight (`docs/feature_importance_short_city_demo.csv`). The band, calibrated on April, covers 78% of true loads in normal weather but only 72–73% in the heatwave, when errors are larger than anything in its calibration month.
+
+### Closed Loop with the Short-Horizon Forecast (`docs/closed_loop_city_demo.csv`)
+May, automatic mode, through the meters; persistence results from the same runs with `--forecast persistence`:
+
+| Scenario | Transformer-steps > 85%, no control | With control: persistence → short | Reduction: persistence → short | Steps > 100%: persistence → short | Switch operations: persistence → short |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| C1 Normal year | 38 | 36 → 34 | 5.3% → 10.5% | 0 → 0 | 160 → 140 |
+| C2 May heatwave | 317 | 320 → **263** | −0.9% → **17.0%** | 1 → 1 | 348 → 360 |
+| C3 EV adoption | 485 | 323 → **186** | 33.4% → **61.6%** | 1 → 0 | 552 → 552 |
+| C4 Heatwave and EV adoption | 1,031 | 838 → **628** | 18.7% → **39.1%** | 11 → **1** | 800 → 800 |
+
+With the same number of switch operations, the control now removes twice as many overloads under EV charging and in the combined scenario. The heatwave is no longer missed (17% removed instead of none), and the steps with a transformer above its rating fall from 11 to 1 in C4. What remains is mostly `no_safe_option` (130 steps in C4): transformers whose neighbours are full too, which no switching can relieve. The decision still uses the point forecast; the P90 bound only raises the risk class (the design decision of Phase 4).
+
+**Limits:**
+- The model learned from the same simulator it is tested on, so the accuracy is that of a model fitted to this city's demand model. On a real network the gap to the last-value forecast would likely be smaller.
+- The weather forecast is the true temperature plus random noise; real forecast errors are larger and correlated.
+- Forecasting 15 minutes ahead is enough for switching decided one step ahead. Planning further ahead (a day ahead) still needs the 24 h forecast.
 
 ---
 
@@ -678,6 +743,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── city.yaml              # Its specification: edit this, then generate
     │   ├── network.dss            # Generated OpenDSS model (3 substations, 8 feeders, 44 transformers)
     │   ├── consumers.csv          # Generated consumers and meters
+    │   ├── forecast/              # The trained short-horizon model and its metadata (ml/train_short.py)
     │   └── config/                # Generated settings for the engine, service and dashboard
     ├── storage/                   # Database layer
     │   ├── schema.py              # Tables (SQLAlchemy Core; SQLite or PostgreSQL)
@@ -726,6 +792,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── evaluate.py            # Accuracy benchmarking vs persistence models, peak-hour metrics
     │   ├── intervals.py           # Conformal P10-P90 intervals (rolling 28 days), coverage, pinball loss
     │   ├── forecaster.py          # forecast_at(t): one 24 h-ahead forecast from a history table
+    │   ├── short_horizon.py       # A city's 15-minute-ahead forecast: features, model loading, forecast tables (Phase 9)
+    │   ├── train_short.py         # Trains it on the city's recorded history; accuracy table
     │   ├── metadata.py            # Model metadata (version, features, windows, metrics, SHA-256), registry
     │   ├── cold_start.py          # Build whatever is missing: data -> model -> forecasts -> intervals
     │   ├── train_v2.py            # v2 experiments: new features, Random Forest, quantile XGBoost, weekly retraining
@@ -755,6 +823,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── performance.csv        # Step time per stage, throughput, memory, database growth, clock accuracy
     │   ├── closed_loop_city_demo.csv, performance_city_demo.csv  # The same for the demo city (May; one busy week)
     │   ├── data_quality_city_demo.csv  # The city with perfect measurement and with its meters (May)
+    │   ├── *_persistence.csv      # The same city tables with the 24 h persistence forecast (Phase 8)
+    │   ├── forecast_short_city_demo.csv, feature_importance_short_city_demo.csv  # Short-horizon forecast accuracy (May)
     │   ├── archive/               # Superseded result tables, with an explanation
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
     ├── tests/                     # Automated pytest suite (see "Running the Tests")
@@ -773,6 +843,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_pages.py          # Every dashboard page headless; service settings; schema migration
     │   ├── test_city.py           # Generator, multi-substation engine, demand model, calibration, persistence forecast, city in the loop
     │   ├── test_meters.py         # Meter streams, head-end estimates and flags, revisions, operator view against the truth
+    │   ├── test_short_forecast.py # Short-horizon forecast: no leakage, published accuracy, closed loop
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)

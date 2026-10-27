@@ -34,7 +34,7 @@ def transformer_panel(tx, last, thr):
                f"rating **{info['rating_kva']:g} kVA**")
     k = st.columns(3)
     k[0].metric("Measured loading", _fmt(g("measured_pct")), help=f"hour {last['sim_time']:%d %b %H:%M}")
-    k[1].metric("Forecast for that hour", _fmt(g("forecast_pct")), help="24 h-ahead forecast, same configuration")
+    k[1].metric("Forecast for that hour", _fmt(g("forecast_pct")), help=f"{C.FC_AHEAD} forecast, same configuration")
     k[2].metric("Upper bound (P90)", _fmt(g("upper_pct")))
     k = st.columns(3)
     k[0].metric("Load", f"{det.get('kw', 0):,.0f} kW" if det else "-", help=f"{det.get('kvar', 0):,.0f} kvar" if det else None)
@@ -90,7 +90,7 @@ def body():
     else:
         loading = last.get("next_forecast_pct") or last["measured_pct"]
         moves, sw, risk = last["config_after"], C.switch_states(last.get("switches_after")), None
-        cap = "Forecast loading for the next hour, in the configuration now in force (coloured by loading)."
+        cap = f"Forecast loading for the next {C.STEP}, in the configuration now in force (coloured by loading)."
     left, right = st.columns([1.15, 1])
     with left:
         fig = (plots.network_figure(C.GRID, loading, moves, thr, risk, sw) if "layout" in C.GRID   # a synthetic city

@@ -278,9 +278,9 @@ def test_the_service_runs_the_city(city_store, city):
     assert len(steps.iloc[-1]["measured_pct"]) == len(config.grid()["transformers"])
     with city_store.engine.connect() as c:
         n_meas = c.exec_driver_sql("select count(*) from measurements where source = 'dt-scada'").scalar_one()
-        n_fc = c.exec_driver_sql("select count(*) from forecasts where model_version = 'persistence-24h'").scalar_one()
-        first = c.exec_driver_sql("select min(target_time) from forecasts where model_version = 'persistence-24h'").scalar_one()
-    assert str(first).startswith("2023-05-10 18:00")                        # issued at 18:00 on the 9th, 24 h ahead
+        n_fc = c.exec_driver_sql("select count(*) from forecasts where model_version = 'short-15m-v1'").scalar_one()
+        first = c.exec_driver_sql("select min(target_time) from forecasts where model_version = 'short-15m-v1'").scalar_one()
+    assert str(first).startswith("2023-05-09 18:15")                        # issued at the end of 18:00, one step ahead
     n = len(config.grid()["transformers"])
     assert n_meas == 8 * n and n_fc == 8 * n                                # readings arrive; forecasts issued 24 h ahead
     last = steps.iloc[-1]

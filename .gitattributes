@@ -3,3 +3,4 @@
 
 # Model files are hashed (ml/model_xgb.meta.json): keep their bytes exactly as committed
 project/ml/model_xgb.json binary
+project/cities/*/forecast/model_short.json binary

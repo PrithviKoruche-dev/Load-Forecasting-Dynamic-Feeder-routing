@@ -220,6 +220,19 @@ class MeterModel:
         return pd.DataFrame(out, index=table.index, columns=table.columns)
 
 
+def observed_history(model, table):
+    """The loads an operator has recorded for a table of true loads (times x transformers): the transformer
+    meters, a gap (sensor out) filled with the reading of the same time the day before (repeatedly, for long
+    gaps). Every value uses only readings from its own time or earlier, except the first day of the year."""
+    h = model.transformer_series(table)
+    day = int(pd.Timedelta(days=1) / model.step)
+    for _ in range(7):
+        if not h.isna().any().any():
+            break
+        h = h.fillna(h.shift(day))
+    return h.ffill().bfill()
+
+
 class HeadEnd:
     """Collects smart-meter readings as they arrive and estimates each transformer's load per interval.
 

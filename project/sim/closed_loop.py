@@ -47,7 +47,7 @@ OUT = ROOT / "docs" / "closed_loop.csv"
 
 
 def forecast_quality(o, times):
-    """Persistence forecast of a synthetic city over these times: nRMSE and P10-P90 band coverage."""
+    """A synthetic city's forecast over these times, against the true loads: nRMSE and P10-P90 band coverage."""
     f = o.forecasts
     f._refresh()
     a, p = o.demand.table.loc[times], f.point_.loc[times]
@@ -76,9 +76,10 @@ def visibility(steps, threshold):
             "overloads_false": int(((seen > threshold) & (true <= threshold)).sum().sum())}
 
 
-def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=None, meters=None):
+def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=None, meters=None, forecast=None):
     """Run one scenario over the whole period (or start..end). Returns (summary row, steps DataFrame).
-    meters (a synthetic city): None as configured in city.yaml, False perfect measurement, True with meters."""
+    meters (a synthetic city): None as configured in city.yaml, False perfect measurement, True with meters.
+    forecast: the forecast source (None: as configured; a city: short or persistence)."""
     from orchestrator import Orchestrator, benchmark_scenario, city_name, prepare_database
     from sources import CitySource
     from storage import Store
@@ -93,7 +94,7 @@ def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=Non
         demand = (CitySource(store, city, benchmark_scenario(scenario_name), meters=meters)
                   if city and meters is not None else None)
         o = Orchestrator(store, scenario=scenario_name, service=f"closed-loop {mode}", demand=demand,
-                         forecast_source=None if city else "precomputed")
+                         forecast_source=forecast or (None if city else "precomputed"))
         o.ctl.set_mode(mode)
         times = [t for t in o.demand.times() if (start is None or t >= pd.Timestamp(start))
                  and (end is None or t <= pd.Timestamp(end))]
@@ -106,7 +107,8 @@ def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=Non
     dec = steps["decision"].value_counts()
     nn = lambda s: int(s.fillna(0).sum())  # noqa: E731
     no_ctl, with_ctl = nn(steps["measured_over_normal"]), nn(steps["measured_over"])
-    row = {"scenario": scenario_name, "mode": mode, "steps": len(steps),
+    row = {"scenario": scenario_name, "mode": mode, **({"forecast": o.forecasts.name} if city else {}),
+           "steps": len(steps),
            "forecast_tx_hours_over": nn(steps["forecast_over"]),
            "reroutes": int(dec.get("reroute", 0)), "restores": int(dec.get("restore", 0)),
            "mitigations": int(dec.get("mitigate", 0)), "no_safe_option": int(dec.get("no_safe_option", 0)),
@@ -137,6 +139,7 @@ def main(argv=None):
                     help="a city: run every scenario with perfect measurement and with the meters")
     ap.add_argument("--scenario", action="append", help="only this scenario (repeatable)")
     ap.add_argument("--out", help="write here instead of docs/")
+    ap.add_argument("--forecast", choices=["short", "persistence"], help="a city's forecast (default: as configured)")
     a = ap.parse_args(argv)
     if a.data_quality and not a.city:
         ap.error("--data-quality needs --city")
@@ -145,6 +148,8 @@ def main(argv=None):
     out = OUT if not a.city else ROOT / "docs" / f"closed_loop_city_{a.city}.csv"
     if a.data_quality:
         out = ROOT / "docs" / f"data_quality_city_{a.city}.csv"
+    if a.city and a.forecast and a.forecast != config.simulation()["orchestrator"]["forecast_source"]:
+        out = out.with_name(out.stem + f"_{a.forecast}.csv")
     out = Path(a.out) if a.out else out
     variants = [("perfect", False), ("meters", True)] if a.data_quality else [(None, None)]
     rows = []
@@ -152,7 +157,7 @@ def main(argv=None):
         if a.scenario and s.name not in a.scenario:
             continue
         for label, meters in variants:
-            row, _ = run(s.name, start=start, end=end, meters=meters)
+            row, _ = run(s.name, start=start, end=end, meters=meters, forecast=a.forecast)
             if label:
                 row = {"measurement": label, **row}
             if a.city:

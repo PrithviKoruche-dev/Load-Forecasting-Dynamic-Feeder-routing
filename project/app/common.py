@@ -23,7 +23,7 @@ from storage import Store  # noqa: E402
 
 # The configuration in force (the classic network or a synthetic city, chosen with --city before the pages load).
 # These names are read from the configuration whenever they are used, so nothing here goes stale:
-#   SIM, SERVICE, OPS, GRID, THR_DEFAULT, HARD_LIMIT, TX
+#   SIM, SERVICE, OPS, GRID, THR_DEFAULT, HARD_LIMIT, TX, STEP (hour or step), FC_AHEAD (the forecast's horizon)
 _LIVE = {
     "SIM": lambda: config.simulation(),
     "SERVICE": lambda: config.simulation()["orchestrator"]["controller"],
@@ -32,6 +32,10 @@ _LIVE = {
     "THR_DEFAULT": lambda: config.operations()["limits"]["overload_threshold_pct"],
     "HARD_LIMIT": lambda: config.operations()["limits"]["transformer_hard_limit_pct"],
     "TX": lambda: list(config.grid()["transformers"]),
+    "PER_HOUR": lambda: 60 // config.simulation()["clock"]["step_minutes"],      # steps per simulated hour
+    "STEP": lambda: "hour" if config.simulation()["clock"]["step_minutes"] == 60 else "step",
+    "FC_AHEAD": lambda: (f"{config.simulation()['clock']['step_minutes']}-minute-ahead"
+                         if config.simulation()["orchestrator"]["forecast_source"] == "short" else "24 h-ahead"),
 }
 
 

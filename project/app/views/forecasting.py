@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common as C  # noqa: E402
 import plots  # noqa: E402
 
-C.page_header("Forecasting", "How good the 24 h-ahead forecasts have been, up to the simulated time.")
+C.page_header("Forecasting", f"How good the {C.FC_AHEAD} forecasts have been, up to the simulated time.")
 COLOURS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#222222"]
 
 

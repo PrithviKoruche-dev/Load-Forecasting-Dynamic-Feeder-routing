@@ -386,11 +386,12 @@ def simulation():
     _need(o.get("scenario") in names, f, f"orchestrator.scenario must be one of {names}, got {o.get('scenario')!r}")
     _need(o.get("mode") in ("monitor", "recommend", "auto"), f,
           f"orchestrator.mode must be monitor, recommend or auto, got {o.get('mode')!r}")
-    _need(o.get("forecast_source") in ("precomputed", "live", "persistence"), f,
-          f"orchestrator.forecast_source must be precomputed, live or persistence, got {o.get('forecast_source')!r}")
+    _need(o.get("forecast_source") in ("precomputed", "live", "persistence", "short"), f,
+          "orchestrator.forecast_source must be precomputed, live, persistence or short, "
+          f"got {o.get('forecast_source')!r}")
     _need(c.get("city") is None or isinstance(c["city"], str), f, "city must be the name of a folder in cities/")
-    _need((c.get("city") is None) == (o["forecast_source"] != "persistence"), f,
-          "forecast_source persistence is for a synthetic city (and a city uses it)")
+    _need((c.get("city") is None) == (o["forecast_source"] not in ("persistence", "short")), f,
+          "forecast_source persistence or short is for a synthetic city (and a city uses one of them)")
     _need(isinstance(o.get("pause_on_recommendation"), bool), f, "orchestrator.pause_on_recommendation must be true or false")
     for k in ("poll_interval_s", "heartbeat_s", "stale_after_s"):
         _number(c, f, "service", k, low=0, low_open=True)

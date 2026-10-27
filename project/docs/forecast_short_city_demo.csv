@@ -1,0 +1,13 @@
+scenario,forecast,MAE_kW,nRMSE_%,bias_kW,nRMSE_heatwave_%,nRMSE_peak_%,band_coverage_%
+C1 Normal year,model,4.19,3.66,0.34,3.7,3.06,78.54
+C1 Normal year,last value,5.98,5.28,0.03,5.28,3.24,
+C1 Normal year,persistence 24h,21.14,21.35,-1.53,23.23,20.72,
+C2 May heatwave,model,4.81,4.09,0.31,4.71,3.21,72.74
+C2 May heatwave,last value,6.22,5.57,0.06,6.02,3.25,
+C2 May heatwave,persistence 24h,23.22,22.44,-1.5,25.16,22.57,
+C3 EV adoption (15% of households),model,4.24,3.62,0.09,3.64,3.06,78.06
+C3 EV adoption (15% of households),last value,6.35,5.46,0.03,5.47,3.49,
+C3 EV adoption (15% of households),persistence 24h,21.32,20.89,-1.53,22.71,18.9,
+C4 Heatwave and EV adoption,model,4.84,4.02,0.05,4.63,3.23,72.46
+C4 Heatwave and EV adoption,last value,6.55,5.69,0.06,6.06,3.47,
+C4 Heatwave and EV adoption,persistence 24h,23.39,21.97,-1.5,24.64,21.06,

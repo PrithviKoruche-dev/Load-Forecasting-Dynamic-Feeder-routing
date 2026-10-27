@@ -117,6 +117,17 @@ meters:
   store_readings: exceptions      # which readings the database keeps: all (~95 MB of SQLite per simulated
                                   # day), exceptions (late or from a stuck meter) or none
 
+# Short-horizon forecast (Phase 9): one model for every transformer, trained on the city's own recorded history
+# (transformer meters) with ml/train_short.py; the service uses it to decide the switching for the next step.
+forecast:
+  horizon_steps: 1                # how far ahead it forecasts (1 step = 15 minutes: the step the decision is for)
+  temperature_error_c: 0.5        # error of the weather forecast for that time (standard deviation, °C)
+  train: ["2023-01-08", "2023-03-31"]        # months it learns from
+  calibrate: ["2023-04-01", "2023-04-30"]    # months that set its P10-P90 band (and stop the training)
+  test: ["2023-05-01", "2023-05-31"]         # the peak month, heatwave included: never seen in training
+  scenarios: [C1 Normal year, C3 EV adoption (15% of households)]   # histories it learns from (C2 and C4
+                                  # differ from these only from May, so they add nothing before it)
+
 scenarios:
   - name: C1 Normal year
     events: []
@@ -132,3 +143,4 @@ simulation:
   end: "2023-12-31 23:45"
   step_minutes: 15
   scenario: C1 Normal year
+  forecast_source: short          # short (Phase 9: one step ahead, ml/train_short.py) or persistence (24 h)

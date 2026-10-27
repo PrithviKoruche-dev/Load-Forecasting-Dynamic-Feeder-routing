@@ -7,5 +7,5 @@ retention:
   forecasts_days: 60
   meter_readings_days: 2
 forecast_import:
-  model_version: persistence-24h
+  model_version: short-15m-v1
   measurement_source: dt-scada
