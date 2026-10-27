@@ -214,6 +214,10 @@ def operations():
     _number(o, f, "limits", "line_limit_pct", low=0, low_open=True)
     _number(o, f, "rerouting", "min_improvement_pct", low=0)
     _number(o, f, "rerouting", "tie_tolerance_pct", low=0)
+    o["rerouting"].setdefault("restore_margin_pct", 0)
+    _number(o, f, "rerouting", "restore_margin_pct", low=0)
+    _need(o["rerouting"]["restore_margin_pct"] < o["limits"]["overload_threshold_pct"], f,
+          "rerouting.restore_margin_pct must be below limits.overload_threshold_pct")
     _need(o["rerouting"].get("candidate_scope", "all") in ("all", "relevant"), f,
           "rerouting.candidate_scope must be all or relevant")
     _need(isinstance(_get(o, f, "rerouting", "use_mv_transfers"), bool), f, "rerouting.use_mv_transfers must be true or false")

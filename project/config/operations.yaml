@@ -13,6 +13,9 @@ rerouting:
   tie_tolerance_pct: 0.001              # moves whose peaks differ by less than this count as equal; lower losses wins
   candidate_scope: all                  # all: try every action (the published benchmark); relevant: only actions that
                                         # move load off an overloaded transformer or make room for it (large networks)
+  restore_margin_pct: 0                 # deadband (Phase 10): while a rerouted configuration keeps every transformer
+                                        # under the threshold, return to normal only once the normal configuration is
+                                        # this many points below it (0: return as soon as it is under; the benchmark)
 
 # Five risk classes (gap-analysis item F5). Forecast-based risk is kept separate from measured risk.
 #   normal < elevated < approaching < predicted_overload < actual_overload

@@ -10,6 +10,7 @@ rerouting:
   use_mv_transfers: false
   tie_tolerance_pct: 0.001
   candidate_scope: relevant
+  restore_margin_pct: 5
 risk:
   elevated_from_pct: 70
   approaching_margin_pct: 5

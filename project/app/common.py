@@ -185,6 +185,8 @@ def service_banner(state):
                    "continues where it stopped.")
     if ctl.get("estopped"):
         st.error("EMERGENCY STOP is active: no switching is proposed or applied.")
+    if state["status"] == "step_failed":
+        st.error(f"The simulation is paused: {state.get('note')}. Resume to try the step again, or jump past it.")
     if state["status"] == "awaiting_operator":
         st.warning(f"The clock is paused: {state.get('note') or 'a switching proposal awaits the operator'}. "
                    "Decide on the Alerts and decisions page.")

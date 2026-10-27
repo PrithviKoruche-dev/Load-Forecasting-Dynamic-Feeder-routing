@@ -72,6 +72,7 @@ class GridEngine:
         self.tie_tolerance = rr["tie_tolerance_pct"]
         self.use_mv = rr["use_mv_transfers"]
         self.candidate_scope = rr.get("candidate_scope", "all")
+        self.restore_margin = float(rr.get("restore_margin_pct", 0))
         self.substations = config.substations(g)
         self.source_buses = {s["bus"].lower() for s in self.substations.values()}   # 11 kV sources
         self.switch_ids = {s: sw["id"] for s, sw in g["switches"].items()}

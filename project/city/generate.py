@@ -207,6 +207,7 @@ def settings(spec, name):
     """The other config files of the city, starting from the classic ones."""
     ops = copy.deepcopy(config.operations())
     ops["rerouting"]["candidate_scope"] = "relevant"
+    ops["rerouting"]["restore_margin_pct"] = 5          # deadband against switching on meter noise (Phase 10)
     sc = {"benchmark": [{"name": s["name"], "rules": [], "events": list(s.get("events", []))}
                         for s in spec["scenarios"]],
           "quick": {"base_kw": 150, "scenarios": [{"name": "Flat load", "rules": []}]},

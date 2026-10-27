@@ -1,0 +1,9 @@
+scenario,mode,forecast,restore_margin_pct,steps,forecast_tx_hours_over,reroutes,restores,mitigations,no_safe_option,switch_operations,hours_rerouted,measured_tx_hours_over_no_control,measured_tx_hours_over_with_control,reduction_%,measured_hours_over_100_no_control,measured_hours_over_100_with_control,forecast_nRMSE_%,band_coverage_%,tx_steps_not_metered,observed_error_pp_mean,observed_error_pp_p99,overloads_missed,overloads_false,mean_step_ms,wall_s,from,to,step_minutes
+C1 Normal year,auto,short,0.0,2976,38,20,17,2,15,140,33,38,34,10.5,0,0,3.7,78.5,686,0.33,1.5,6,12,141.7,422.2,2023-05-01 00:00,2023-05-31 23:45,15
+C1 Normal year,auto,short,5.0,2976,34,15,14,2,15,108,67,38,31,18.4,0,0,3.7,78.5,686,0.33,1.5,6,10,125.9,375.1,2023-05-01 00:00,2023-05-31 23:45,15
+C2 May heatwave,auto,short,0.0,2976,243,32,32,34,93,360,123,317,263,17.0,1,1,4.1,72.7,686,0.35,1.5,23,34,145.0,432.0,2023-05-01 00:00,2023-05-31 23:45,15
+C2 May heatwave,auto,short,5.0,2976,238,21,25,34,93,320,185,317,260,18.0,1,1,4.1,72.7,686,0.35,1.5,22,34,131.0,390.3,2023-05-01 00:00,2023-05-31 23:45,15
+C3 EV adoption (15% of households),auto,short,0.0,2976,163,124,35,16,36,552,240,485,186,61.6,1,0,3.6,78.1,686,0.34,1.5,22,30,131.2,390.9,2023-05-01 00:00,2023-05-31 23:45,15
+C3 EV adoption (15% of households),auto,short,5.0,2976,152,64,29,16,36,484,302,485,160,67.0,1,0,3.6,78.1,686,0.34,1.5,20,25,135.2,402.7,2023-05-01 00:00,2023-05-31 23:45,15
+C4 Heatwave and EV adoption,auto,short,0.0,2976,555,129,43,60,130,800,328,1031,628,39.1,17,1,4.0,72.5,686,0.35,1.6,54,72,142.0,423.0,2023-05-01 00:00,2023-05-31 23:45,15
+C4 Heatwave and EV adoption,auto,short,5.0,2976,547,64,36,60,129,748,395,1031,592,42.6,17,1,4.0,72.5,686,0.35,1.6,50,60,144.6,430.9,2023-05-01 00:00,2023-05-31 23:45,15

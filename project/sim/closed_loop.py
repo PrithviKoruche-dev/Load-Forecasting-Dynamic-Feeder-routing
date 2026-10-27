@@ -76,10 +76,12 @@ def visibility(steps, threshold):
             "overloads_false": int(((seen > threshold) & (true <= threshold)).sum().sum())}
 
 
-def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=None, meters=None, forecast=None):
+def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=None, meters=None, forecast=None,
+        restore_margin=None):
     """Run one scenario over the whole period (or start..end). Returns (summary row, steps DataFrame).
     meters (a synthetic city): None as configured in city.yaml, False perfect measurement, True with meters.
-    forecast: the forecast source (None: as configured; a city: short or persistence)."""
+    forecast: the forecast source (None: as configured; a city: short or persistence).
+    restore_margin: the deadband of operations.yaml rerouting.restore_margin_pct (None: as configured)."""
     from orchestrator import Orchestrator, benchmark_scenario, city_name, prepare_database
     from sources import CitySource
     from storage import Store
@@ -96,6 +98,8 @@ def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=Non
         o = Orchestrator(store, scenario=scenario_name, service=f"closed-loop {mode}", demand=demand,
                          forecast_source=forecast or (None if city else "precomputed"))
         o.ctl.set_mode(mode)
+        if restore_margin is not None:
+            o.engine.restore_margin = float(restore_margin)
         times = [t for t in o.demand.times() if (start is None or t >= pd.Timestamp(start))
                  and (end is None or t <= pd.Timestamp(end))]
         t0 = time.perf_counter()
@@ -107,7 +111,8 @@ def run(scenario_name, mode="auto", db_dir=None, frame=None, start=None, end=Non
     dec = steps["decision"].value_counts()
     nn = lambda s: int(s.fillna(0).sum())  # noqa: E731
     no_ctl, with_ctl = nn(steps["measured_over_normal"]), nn(steps["measured_over"])
-    row = {"scenario": scenario_name, "mode": mode, **({"forecast": o.forecasts.name} if city else {}),
+    row = {"scenario": scenario_name, "mode": mode,
+           **({"forecast": o.forecasts.name, "restore_margin_pct": o.engine.restore_margin} if city else {}),
            "steps": len(steps),
            "forecast_tx_hours_over": nn(steps["forecast_over"]),
            "reroutes": int(dec.get("reroute", 0)), "restores": int(dec.get("restore", 0)),
@@ -140,6 +145,7 @@ def main(argv=None):
     ap.add_argument("--scenario", action="append", help="only this scenario (repeatable)")
     ap.add_argument("--out", help="write here instead of docs/")
     ap.add_argument("--forecast", choices=["short", "persistence"], help="a city's forecast (default: as configured)")
+    ap.add_argument("--restore-margin", type=float, help="deadband in points (default: operations.yaml)")
     a = ap.parse_args(argv)
     if a.data_quality and not a.city:
         ap.error("--data-quality needs --city")
@@ -157,7 +163,8 @@ def main(argv=None):
         if a.scenario and s.name not in a.scenario:
             continue
         for label, meters in variants:
-            row, _ = run(s.name, start=start, end=end, meters=meters, forecast=a.forecast)
+            row, _ = run(s.name, start=start, end=end, meters=meters, forecast=a.forecast,
+                         restore_margin=a.restore_margin)
             if label:
                 row = {"measurement": label, **row}
             if a.city:

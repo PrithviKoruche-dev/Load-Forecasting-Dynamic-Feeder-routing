@@ -238,11 +238,23 @@ class Controller:
         before = r["before"]
         conf_limit = thr
         cur_viol = r.get("violations_before", [])
+        cur = None
         if self.active and before is not None:          # what is actually in force now
             cur = e.evaluate_configuration(loads_kw, self.active)
             before = cur["metrics"] or before
             cur_viol = cur["violations"] if cur["metrics"] else cur_viol
-        if r["status"] == "rerouted":
+        normal = r["before"]
+        margin = getattr(e, "restore_margin", 0.0)
+        if (margin > 0 and cur is not None and cur["ok"] and cur["metrics"] and normal is not None
+                and max(cur["metrics"]["loading_by_tx"].values()) <= thr
+                and normal["max_loading"] > thr - margin):
+            # deadband: the configuration in force keeps every transformer under the threshold and the normal
+            # one would not be comfortably under it, so keep it (no switching on small changes or meter noise)
+            kind, target, after = "no_change", list(self.active), before
+            summary = (f"Holding the current configuration (peak {before['max_loading']:.1f}%): the normal "
+                       f"configuration would be at {normal['max_loading']:.1f}%; it returns to normal below "
+                       f"{thr - margin:g}%.")
+        elif r["status"] == "rerouted":
             target = r["target"]
             if sorted(target) == sorted(self.active):
                 kind, summary = "no_change", "The network is already in the recommended configuration."

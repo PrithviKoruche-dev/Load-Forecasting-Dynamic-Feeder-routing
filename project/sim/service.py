@@ -87,6 +87,7 @@ class Service:
             raise ClockError(f"clock.step_minutes ({self.clock.step}) must equal the data resolution of the "
                              f"{self.orch.demand.name} source ({self.orch.demand.resolution})")
         self.note, self.paused_for_rec, self._stop, self._behind = "", False, False, False
+        self.failed = False                                 # the last step raised (cleared by any clock command)
         self.pause_on_rec = cfg["orchestrator"]["pause_on_recommendation"]     # the approval policy
         saved = (prev or {}).get("settings") or {}
         if saved:
@@ -141,6 +142,8 @@ class Service:
             return "stopped"
         if self.paused_for_rec:
             return "awaiting_operator"
+        if self.failed and not self.clock.running:
+            return "step_failed"
         return "running" if self.clock.running else "paused"
 
     def save_state(self, started=False):
@@ -184,6 +187,21 @@ class Service:
             self.ctl.note("service", f"run {self.run_id} reached the end of the period ({self._label(t)})", self._label(t))
         return row
 
+    def _step_failed(self, ex):
+        """A step raised (a power flow that cannot be solved, a database error, ...): log it, pause before that
+        step and say so on every page; the operator can resume (retry), jump past it or start a new run."""
+        t = self._label(self.clock.next_time)
+        log.exception("step %s failed", t)
+        if self.clock.running:
+            self.clock.pause()
+        self.paused_for_rec, self.failed = False, True
+        self.note = f"step {t} failed ({type(ex).__name__}: {ex}); paused, see logs/service.log"
+        try:
+            self.ctl.note("service", self.note, t, severity="critical")
+        except Exception:                                   # the database itself may be the problem
+            log.exception("could not record the failure")
+        self.save_state()
+
     # ------------------------------------------------------------------ commands
     def _after_decision(self):
         if self.paused_for_rec:
@@ -194,6 +212,8 @@ class Service:
     def execute(self, command, args=None):
         """Run one command; returns a short result text. Raises DecisionError/ClockError/ValueError if refused."""
         a, ctl, clk = args or {}, self.ctl, self.clock
+        if command in ("resume", "step", "jump", "restart"):
+            self.failed = False
         if command == "resume":
             clk.resume()
             self.paused_for_rec, self.note = False, ""
@@ -321,7 +341,11 @@ class Service:
                 if t_end is not None and self._wall() >= t_end:
                     break
                 if self.clock.due():
-                    self.step_once()
+                    try:
+                        self.step_once()
+                    except Exception as ex:                       # a failed step pauses the clock, never the service
+                        self._step_failed(ex)
+                        continue
                     steps += 1
                     if self._wall() - self._last_beat >= beat or not self.clock.running:
                         self.save_state()
@@ -347,7 +371,8 @@ def main(argv=None):
     ap.add_argument("--speed", help="simulated seconds per wall second, 'accelerated' (1 year per 24 h) or 'max'")
     ap.add_argument("--mode", choices=["monitor", "recommend", "auto"])
     ap.add_argument("--scenario", help="a benchmark scenario name from config/scenarios.yaml")
-    ap.add_argument("--forecast", choices=["precomputed", "live"], help="forecast source (default from config)")
+    ap.add_argument("--forecast", choices=["precomputed", "live", "persistence", "short"],
+                    help="forecast source (default from config; a city: persistence or short)")
     ap.add_argument("--paused", action="store_true", help="start paused (resume with: python sim/control.py resume)")
     ap.add_argument("--new-run", action="store_true", help="start again from the beginning as a new run")
     ap.add_argument("--steps", type=int, help="stop after this many steps")

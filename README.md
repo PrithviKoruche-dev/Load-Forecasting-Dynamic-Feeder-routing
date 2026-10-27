@@ -25,6 +25,7 @@
 - [Synthetic City (Phase 7)](#-synthetic-city-phase-7)
 - [Meters and Data Quality (Phase 8)](#-meters-and-data-quality-phase-8)
 - [Short-Horizon Forecast (Phase 9)](#-short-horizon-forecast-phase-9)
+- [Hardening (Phase 10)](#-hardening-phase-10)
 - [Configuration, Asset IDs & Logging](#-configuration-asset-ids--logging)
 - [Repository Structure](#-repository-structure)
 - [Getting Started & Installation](#-getting-started--installation)
@@ -508,8 +509,9 @@ streamlit run app/app.py -- --city demo                       # the dashboard fo
 python sim/control.py status --city demo                      # every control.py command takes --city
 python ml/train_short.py --city demo                          # the short-horizon forecast (about 1 min)
 python sim/closed_loop.py --city demo                         # docs/closed_loop_city_demo.csv (about 25 min)
-python sim/closed_loop.py --city demo --forecast persistence  # docs/closed_loop_city_demo_persistence.csv
-python sim/closed_loop.py --city demo --data-quality          # docs/data_quality_city_demo.csv (about 50 min)
+python sim/closed_loop.py --city demo --restore-margin 0      # without the deadband (docs/deadband_city_demo.csv)
+python sim/closed_loop.py --city demo --forecast persistence --restore-margin 0   # docs/closed_loop_city_demo_persistence.csv
+python sim/closed_loop.py --city demo --data-quality --restore-margin 0          # docs/data_quality_city_demo.csv (about 50 min)
 python sim/benchmark.py --city demo                           # docs/performance_city_demo.csv
 ```
 The city has its own database (`data/city_demo.db`), so its runs never mix with the classic network's. The dashboard pages work unchanged (the Network page draws the city's 44 transformers, 8 feeders and ties from the layout in `grid.yaml`); the what-if replay sandbox, which replays the eMARC forecasts, is not shown for a city.
@@ -586,7 +588,7 @@ In every scenario, 686 of the 130,944 transformer-steps (0.5%) had no transforme
 - **The cost is switching.** A 1% meter error moves loads that sit near the 85% threshold back and forth across it. The persistence forecast copies that noise into the next day, so the controller reroutes and restores more often: 74% more switch operations in the normal year, 9% more in C4.
 - **Missed and false overloads balance.** "Overloads missed" are transformer-steps above the threshold that the operator saw at or below it. In C4, 97% of the missed ones were within 1.5 points of the threshold (median 0.5), and as many false ones went the other way. Where the smart meters stood in for a transformer meter, the error was larger: 2.3 points on average, against 0.34 for the transformer meters.
 
-A deadband on rerouting and restoring (act at 85%, restore only below, say, 80%) would remove most of this switching wear, and is noted for Phase 10.
+A deadband on rerouting and restoring (act at 85%, restore only below, say, 80%) would remove much of this switching wear; it was added in Phase 10 (see Hardening).
 
 **With the short-horizon forecast of Phase 9** (`docs/data_quality_city_demo.csv`), the meters cost a little more in outcome and less in switching. Transformer-steps above 85% with control, perfect → meters:
 - C1: 33 → 34
@@ -638,8 +640,8 @@ Scored against the true loads:
 
 "Last value" is the simplest short-horizon forecast: the reading just taken. Most of the gain over persistence comes from forecasting 15 minutes ahead instead of 24 hours. The model takes another 25–35% off the error of the last value by anticipating the ramps: the time of day carries the most weight (`docs/feature_importance_short_city_demo.csv`). The band, calibrated on April, covers 78% of true loads in normal weather but only 72–73% in the heatwave, when errors are larger than anything in its calibration month.
 
-### Closed Loop with the Short-Horizon Forecast (`docs/closed_loop_city_demo.csv`)
-May, automatic mode, through the meters; persistence results from the same runs with `--forecast persistence`:
+### Closed Loop with the Short-Horizon Forecast
+May, automatic mode, through the meters, without the deadband of Phase 10 (`docs/deadband_city_demo.csv`, rows with `restore_margin_pct` 0; persistence: `docs/closed_loop_city_demo_persistence.csv`):
 
 | Scenario | Transformer-steps > 85%, no control | With control: persistence → short | Reduction: persistence → short | Steps > 100%: persistence → short | Switch operations: persistence → short |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -654,6 +656,40 @@ With the same number of switch operations, the control now removes twice as many
 - The model learned from the same simulator it is tested on, so the accuracy is that of a model fitted to this city's demand model. On a real network the gap to the last-value forecast would likely be smaller.
 - The weather forecast is the true temperature plus random noise; real forecast errors are larger and correlated.
 - Forecasting 15 minutes ahead is enough for switching decided one step ahead. Planning further ahead (a day ahead) still needs the 24 h forecast.
+
+
+---
+
+## 🛡 Hardening (Phase 10)
+
+### Switching Deadband (`operations.yaml rerouting.restore_margin_pct`)
+Phase 8 showed meter noise near the threshold making the controller reroute and restore back and forth. The deadband rule: while the configuration in force keeps every transformer under the threshold and respects every limit, the controller **holds it** unless the normal configuration would be at least `restore_margin_pct` points under the threshold. Otherwise it returns to normal or reroutes as before. A hold is recorded as "Holding the current configuration … returns to normal below 80%". The classic benchmark keeps 0, so every published classic number is unchanged; the city uses 5.
+
+May, automatic mode, short-horizon forecast, through the meters (`docs/deadband_city_demo.csv`):
+
+| Scenario | Switch operations: no deadband → 5 points | Reroutes | Transformer-steps > 85% with control | Reduction from no control |
+|:---|:---:|:---:|:---:|:---:|
+| C1 Normal year | 140 → **108** | 20 → 15 | 34 → 31 | 10.5% → 18.4% |
+| C2 May heatwave | 360 → **320** | 32 → 21 | 263 → 260 | 17.0% → 18.0% |
+| C3 EV adoption | 552 → **484** | 124 → 64 | 186 → **160** | 61.6% → **67.0%** |
+| C4 Heatwave and EV adoption | 800 → **748** | 129 → 64 | 628 → **592** | 39.1% → **42.6%** |
+
+The deadband removes 7–23% of the switch operations and halves the reroutes, and it also lowers the overloads. A reroute kept in force through the evening no longer drops out between two peaks, so the next ramp starts in a configuration that already has room. The cost is time away from the normal configuration: in C4 the network spent 395 instead of 328 steps rerouted. `docs/closed_loop_city_demo.csv` is now these results.
+
+### A Failed Step Pauses, It Does Not Stop the Service
+If a step raises an error (a power flow that cannot be solved, a database error), the service:
+- logs it with its traceback,
+- records a critical event in the audit log,
+- pauses the clock before that step,
+- shows the reason in red on every page (status `step_failed`).
+
+It keeps serving commands. Resuming tries the step again; jumping or starting a new run moves past it. Before, such an error ended the service.
+
+### Smaller Fixes
+- **Continuous integration** (`.github/workflows/tests.yml`): on every push GitHub installs `requirements.txt`, checks the installation and runs the fast test suite. The two tests that need the eMARC parquet file are skipped there.
+- **Service options:** `python sim/service.py --forecast` now accepts the city's `persistence` and `short` sources.
+- **Dashboard wording:** labels follow the step length and forecast horizon of the configuration in force ("next step" and "15-minute-ahead" for a city), and history windows cover the stated number of hours.
+- **Report:** `docs/REPORT.md` gathers every result of the project in one place as a draft results chapter.
 
 ---
 
@@ -824,6 +860,8 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── closed_loop_city_demo.csv, performance_city_demo.csv  # The same for the demo city (May; one busy week)
     │   ├── data_quality_city_demo.csv  # The city with perfect measurement and with its meters (May)
     │   ├── *_persistence.csv      # The same city tables with the 24 h persistence forecast (Phase 8)
+    │   ├── deadband_city_demo.csv # The city with and without the switching deadband (Phase 10)
+    │   ├── REPORT.md              # Draft results chapter for the project report: every result in one place
     │   ├── forecast_short_city_demo.csv, feature_importance_short_city_demo.csv  # Short-horizon forecast accuracy (May)
     │   ├── archive/               # Superseded result tables, with an explanation
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
@@ -844,6 +882,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_city.py           # Generator, multi-substation engine, demand model, calibration, persistence forecast, city in the loop
     │   ├── test_meters.py         # Meter streams, head-end estimates and flags, revisions, operator view against the truth
     │   ├── test_short_forecast.py # Short-horizon forecast: no leakage, published accuracy, closed loop
+    │   ├── test_hardening.py      # Switching deadband, a failed step pauses the service, settings checks
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
@@ -1026,7 +1065,6 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = 85.0, use_mv: bool =
 
 ## 🔮 Future Enhancements
 
-- [ ] **Switching Deadband:** restore a reroute only once the load is well below the threshold, to stop meter noise from causing reroute–restore cycles (Phase 8 measured up to 74% more switch operations from a 1% meter error).
 - [ ] **Multi-Period Lookahead Optimization:** Incorporate a receding-horizon Model Predictive Control (MPC) formulation to penalize excessive switch wear over 24 hours.
 - [ ] **Distributed Energy Resources (DERs):** Integrate rooftop Solar PV arrays and Battery Energy Storage Systems (BESS) for localized peak shaving.
 - [ ] **Reinforcement Learning (RL):** Benchmark deep Q-networks (DQN) or PPO agents against the greedy heuristic for complex meshed distribution grids.
