@@ -90,6 +90,33 @@ events:
     arrival_h: {mean: 19.0, sd: 1.2}
     consumers: [residential, mixed]
 
+# Measurements (Phase 8; gap item C5). Two separate streams:
+#   transformer meters (SCADA): every transformer, real time, with an accuracy and occasional sensor failures
+#   smart meters (AMI): one per consumer, a reading per 15 minutes that arrives after a communication delay;
+#     some readings are lost, a transformer's data concentrator can be down for hours (its readings arrive
+#     when it is back), and a few meters get stuck on one value (the head-end flags them)
+# The head-end estimates each transformer's load from the readings received so far, with a quality flag.
+meters:
+  enabled: true
+  transformer:
+    accuracy: 0.01                # relative error of a transformer meter
+    failures: {per_year: 2, mean_hours: 12}       # per transformer: sensor out of service
+  smart:
+    individual_variation: 0.2     # a consumer's 15-minute load around its typical profile (relative)
+    accuracy: 0.01
+    delay_s: {median: 120, sigma: 1.2}            # lognormal delay after the interval ends
+    lost: 0.01                    # share of readings never delivered
+    concentrator_outages: {per_year: 4, mean_hours: 6}   # per transformer
+    stuck_meters: 0.005           # share of meters that get stuck on one value at some point of the year
+    stuck_after: 8                # the head-end flags a meter after this many identical readings in a row
+  lv_losses: 0.04                 # share of a transformer's load its consumers' meters do not see (losses, unmetered)
+  head_end:
+    good_share: 0.98              # estimate quality: good if this share of the expected load has reported
+    estimated_share: 0.7          # estimated above this share, poor below it, missing with no readings
+    window_hours: 48              # readings later than this are counted as lost
+  store_readings: exceptions      # which readings the database keeps: all (~95 MB of SQLite per simulated
+                                  # day), exceptions (late or from a stuck meter) or none
+
 scenarios:
   - name: C1 Normal year
     events: []

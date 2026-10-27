@@ -23,6 +23,7 @@
 - [Operator Dashboard (Streamlit & Plotly)](#-operator-dashboard-streamlit--plotly)
 - [Closed-Loop Simulation Service](#-closed-loop-simulation-service)
 - [Synthetic City (Phase 7)](#-synthetic-city-phase-7)
+- [Meters and Data Quality (Phase 8)](#-meters-and-data-quality-phase-8)
 - [Configuration, Asset IDs & Logging](#-configuration-asset-ids--logging)
 - [Repository Structure](#-repository-structure)
 - [Getting Started & Installation](#-getting-started--installation)
@@ -71,7 +72,7 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - Optional MV feeder transfers (open sectionaliser `A2`/`B2`, close `TIE1`) for feeder-cable and voltage problems; voltage and line violations trigger a search even when no transformer is overloaded.
 
 - **📊 Interactive Streamlit Operator Dashboard:**
-  - One multi-page app: overview, network with a clickable inspector, sortable transformer table with history, forecast accuracy over time, alerts and decisions, controls and a filterable audit log, all reading one state from the database; plus a what-if replay sandbox.
+  - One multi-page app: overview, network with a clickable inspector, sortable transformer table with history, forecast accuracy over time, alerts and decisions, controls, a filterable audit log and data quality, all reading one state from the database; plus a what-if replay sandbox.
   - Live interactive single-line network diagram powered by Plotly, transformers coloured by risk class, open and closed switches drawn as they are.
   - Time-scrubbing replay slider with automatic "Jump to Peak Hour" capability.
   - Automated 24-hour day-ahead overload scanning matrix with severity tagging (`CRITICAL` vs `WARNING`).
@@ -93,7 +94,8 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
 - **🏙 Synthetic City:**
   - A generated city of 3 substations, 8 feeders and 44 transformers serving 5,083 households, shops, offices, mixed-use buildings and factories, each with a meter, built from one YAML file and a seed.
   - 15-minute demand for a whole year from consumer profiles (households calibrated on the eMARC data), weekdays, holidays, seasons and weather; heatwaves, EV charging and festivals are events in the city's demand.
-  - Runs through the same engine, service and dashboard (`--city demo`), within 5% of the accelerated mode's time budget.
+  - Runs through the same engine, service and dashboard (`--city demo`), within 6% of the accelerated mode's time budget.
+  - Separate measurement streams: transformer meters that fail, smart meters whose readings arrive late, get lost or come from stuck meters, and a head-end that estimates, flags and revises. The operator decides on what was measured; outcomes are judged on the true loads.
 
 - **🔬 Comprehensive Scenario Verification:**
   - Validated across **1,073 continuous test hours** across 5 distinct operational scenarios: Normal Day, Feeder A Heatwave, EV Evening Surge, Severe Multi-Feeder Stress, and Extreme Single-Transformer Overload.
@@ -481,19 +483,19 @@ Every transformer's load at **15-minute** resolution for a whole year (35,040 st
 - **Events** change the demand itself rather than scaling a forecast: `diwali_lights` (always on: households use 25% more in the evening for five days), `may_heatwave` (+6 °C for nine days, acting through every cooling term) and `ev_adoption` (15% of households charge a 3.3 kW car in the evening, about 7 kWh a day). Scenarios switch events on: **C1** normal year, **C2** May heatwave, **C3** EV adoption, **C4** both. The weather and the noise do not depend on the events, so scenarios differ only where their events act (tested).
 
 ### Forecast in the City
-The XGBoost model was trained on the six eMARC clusters, so the city starts with a transparent baseline: the **24 h-ahead persistence forecast** (the load at the same time the day before), with a P10–P90 band from the same rolling conformal calibration as Phase 4, using only loads known at issue time (tested by changing every later load). The service writes each step's meter readings and issues the forecast for 24 h later, so the Forecasting page scores them as time passes. Phase 9 replaces it with a short-horizon model trained on the simulator's own history.
+The XGBoost model was trained on the six eMARC clusters, so the city starts with a transparent baseline: the **24 h-ahead persistence forecast** (the load at the same time the day before), with a P10–P90 band from the same rolling conformal calibration as Phase 4, using only loads known at issue time (tested by changing every later load). The service writes each step's meter readings and issues the forecast for 24 h later, so the Forecasting page scores them as time passes. Since Phase 8 the forecast is built from what the transformer meters recorded, not from the true loads (see below). Phase 9 replaces it with a short-horizon model trained on the simulator's own history.
 
 ### City Results (`docs/closed_loop_city_demo.csv`)
-May (the peak month, 2,976 steps of 15 minutes), automatic mode, closed loop as in Phase 5:
+May (the peak month, 2,976 steps of 15 minutes), automatic mode, closed loop as in Phase 5, with the operator seeing the loads through the city's meters (Phase 8; outcomes are judged on the true loads):
 
 | Scenario | Reroutes / restores / mitigations | Switch operations | Measured transformer-steps > 85%: no control → with control | Reduction | Steps with a transformer > 100% | Forecast nRMSE | P10–P90 coverage |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| C1 Normal year | 12 / 12 / 2 | 92 | 38 → 38 | 0.0% | 0 → 0 | 21.3% | 80.3% |
-| C2 May heatwave | 23 / 22 / 22 | 236 | 317 → 316 | 0.3% | 1 → 1 | 22.3% | 79.7% |
-| C3 EV adoption (15% of households) | 115 / 34 / 20 | 536 | 485 → 324 | 33.2% | 1 → 1 | 20.8% | 80.3% |
-| C4 Heatwave and EV adoption | 112 / 36 / 59 | 732 | 1,031 → 840 | 18.5% | 17 → 11 | 21.9% | 79.7% |
+| C1 Normal year | 19 / 20 / 4 | 160 | 38 → 36 | 5.3% | 0 → 0 | 21.3% | 80.2% |
+| C2 May heatwave | 32 / 32 / 31 | 348 | 317 → 320 | −0.9% | 1 → 1 | 22.4% | 79.6% |
+| C3 EV adoption (15% of households) | 119 / 33 / 18 | 552 | 485 → 323 | 33.4% | 1 → 1 | 20.9% | 80.3% |
+| C4 Heatwave and EV adoption | 122 / 40 / 59 | 800 | 1,031 → 838 | 18.7% | 17 → 11 | 22.0% | 79.6% |
 
-The P10–P90 band is well calibrated (about 80% coverage in every scenario), and the control removes a third of the overloads where they come back every day (EV charging), but **almost none in the heatwave**: persistence cannot foresee the first hot day (on 8 May none of the 122 overloaded steps was forecast) and then expects yesterday's overloads at the wrong times. The point forecast decides the switching (the design decision recorded under Forecasting), so a forecast that follows the weather is what the city needs most: Phase 9.
+The P10–P90 band is well calibrated (about 80% coverage in every scenario), and the control removes a third of the overloads where they come back every day (EV charging), but **almost none in the heatwave**: persistence cannot foresee the first hot day (on 8 May none of the 122 overloaded steps was forecast, Phase 7) and then expects yesterday's overloads at the wrong times. The point forecast decides the switching (the design decision recorded under Forecasting), so a forecast that follows the weather is what the city needs most: Phase 9.
 
 ### Running the City
 ```bash
@@ -502,23 +504,91 @@ python city/generate.py demo                                  # only after editi
 python sim/service.py --city demo                             # or start it from the dashboard
 streamlit run app/app.py -- --city demo                       # the dashboard for the city (note the --)
 python sim/control.py status --city demo                      # every control.py command takes --city
-python sim/closed_loop.py --city demo                         # docs/closed_loop_city_demo.csv (about 20 min)
+python sim/closed_loop.py --city demo                         # docs/closed_loop_city_demo.csv (about 25 min)
+python sim/closed_loop.py --city demo --data-quality          # docs/data_quality_city_demo.csv (about 50 min)
 python sim/benchmark.py --city demo                           # docs/performance_city_demo.csv
 ```
 The city has its own database (`data/city_demo.db`), so its runs never mix with the classic network's. The dashboard pages work unchanged (the Network page draws the city's 44 transformers, 8 feeders and ties from the layout in `grid.yaml`); the what-if replay sandbox, which replays the eMARC forecasts, is not shown for a city.
 
 ### City Performance (`docs/performance_city_demo.csv`)
-One busy week (heatwave and EV adoption, 672 steps of 15 minutes, automatic mode) on the same 2-CPU container:
+One busy week (heatwave and EV adoption, 672 steps of 15 minutes, automatic mode, with the meters of Phase 8) on the same 2-CPU container (Phase 7, without meters: 104 ms per step):
 
 | Measure | Value |
 |:---|:---|
-| Step time, mean / 95th percentile | 104 ms / 271 ms (power flow 39 ms, forecast and scoring 27 ms, decision 36 ms) |
-| Throughput | 9.6 steps/s: a simulated year of 15-minute steps in about 61 minutes |
-| Accelerated mode (1 year per 24 h) | uses 4.2% of the 2.47 s budget per 15-minute step |
-| Memory | about 346 MB; flat after warm-up (1,500 steps checked) |
-| Database | about 56 KB per step before retention; the city keeps 60 days of measurements, alerts and forecasts (`storage.yaml retention`, applied by the service once per simulated day), and only switch positions away from normal are stored with each step |
+| Step time, mean / 95th percentile | 143 ms / 313 ms (meters 19 ms, power flow 54 ms, forecast and scoring 31 ms, decision 37 ms) |
+| Throughput | 7.0 steps/s: a simulated year of 15-minute steps in about 83 minutes |
+| Accelerated mode (1 year per 24 h) | uses 5.8% of the 2.47 s budget per 15-minute step |
+| Memory | about 366 MB; flat once the head-end's 48-hour window has filled (1,500 steps checked) |
+| Database | about 112 KB per step before retention; the city keeps 60 days of measurements, alerts and forecasts and 2 days of smart-meter readings (`storage.yaml retention`, applied by the service once per simulated day), and only switch positions away from normal are stored with each step |
 
 Most of the power-flow time is OpenDSS recompiling the circuit before every evaluation (6.5 of 11.4 ms on the city); keeping the circuit loaded between evaluations is the obvious next speed-up if a faster-than-hourly city is needed.
+
+
+---
+
+## 📡 Meters and Data Quality (Phase 8)
+
+Until Phase 7 the operator saw every transformer's true load at the end of each step. A real operator sees measurements: a transformer meter that sometimes stops reporting, and thousands of smart meters whose readings arrive late, get lost or come from a stuck meter. Phase 8 models these two streams separately (`city/meters.py`, settings in the `meters` section of `city.yaml`). The simulator keeps two views of every step. The **true loads** are what the network carried; the power flow and the outcome (`measured_*` columns, every result table) use them. The **observed loads** are what the operator knew, and the forecast, risk classes and alerts use them.
+
+### The Two Streams
+| | Transformer meters (SCADA) | Smart meters (AMI) |
+|:---|:---|:---|
+| How many | one per transformer (44) | one per consumer (5,083, `MTR-00001` …) |
+| Reading | true load × (1 + 1% error) | the consumer's share of its transformer's load, varied ±20% per consumer, less 4% LV losses (together the meters see 96% of the transformer) |
+| Arrives | at once | after a lognormal delay (median 2 min; 5% later than 15 min); 1% never arrive |
+| Faults | sensor out of service 2 times a year per transformer, about 12 h each (0.3% of transformer-steps) | data concentrator down 4 times a year per transformer, about 6 h each (its readings wait and arrive when it is back); 0.5% of meters get stuck on one value |
+
+Everything is drawn from the city's seed and the interval, so every run sees the same readings, faults and delays.
+
+### The Head-End
+The head-end collects smart-meter readings as they arrive. For every transformer and interval it estimates the load from the readings received so far, as (sum of readings ÷ expected share of those consumers) ÷ (1 − LV losses). Each estimate gets a quality flag: **good** (at least 98% of the expected load has reported), **estimated** (at least 70%), **poor** or **missing**. An estimate is revised whenever late readings for its interval arrive. A meter that sends 8 identical non-zero readings in a row is flagged **suspect** and left out of every estimate in the 48-hour window, including earlier ones, which are revised. Readings more than 48 hours late are counted as lost. Its state is rebuilt by replaying that window after a restart or a jump in time; a test checks that this gives the same state as running through it.
+
+### What the Operator Uses
+For each transformer and step, in this order:
+1. The transformer meter.
+2. If its sensor is out, the smart meters' estimate of the interval before, when it is good or estimated. The current interval's readings have not arrived yet.
+3. Otherwise the forecast, or the last value seen.
+
+The 24 h-ahead persistence forecast is built from what the transformer meters recorded; a gap is filled from the same time a day earlier. Forecasts are scored against the transformer meters (`dt-scada`). The database keeps:
+- the transformer meters,
+- the smart-meter estimates (`ami-estimate`, one row per transformer and interval, revised in place),
+- the exception readings: those later than one interval, and those from suspect meters (`meter_readings`). Storing every reading costs about 95 MB per simulated day, so `meters.store_readings` chooses `all`, `exceptions` or `none`.
+
+The schema is now version 4, and an older database is upgraded when opened. A city without a `meters` section, or with `enabled: false`, and the classic network still give the operator the true loads.
+
+The new **Data quality** page shows:
+- where each transformer's value came from,
+- seen against true loading,
+- the last two hours of smart-meter estimate quality,
+- late readings, readings in transit, suspect meters and concentrators down, over time,
+- the exception readings by transformer.
+
+The **Transformers** page now shows the loading the operator saw, with its source and the true loading beside it.
+
+### Perfect Measurement against the Meters (`docs/data_quality_city_demo.csv`)
+May, automatic mode, each scenario run twice: once with the operator seeing the true loads, once through the meters.
+
+| Scenario | Switch operations: perfect → meters | Transformer-steps > 85%, with control: perfect → meters (no control) | Seen error, mean / 99th pct (points) | Overloads missed / false |
+|:---|:---:|:---:|:---:|:---:|
+| C1 Normal year | 92 → 160 | 38 → 36 (38) | 0.33 / 1.5 | 8 / 15 |
+| C2 May heatwave | 236 → 348 | 316 → 320 (317) | 0.35 / 1.5 | 31 / 36 |
+| C3 EV adoption | 536 → 552 | 324 → 323 (485) | 0.34 / 1.5 | 28 / 33 |
+| C4 Heatwave and EV adoption | 732 → 800 | 840 → 838 (1,031) | 0.35 / 1.6 | 66 / 64 |
+
+In every scenario, 686 of the 130,944 transformer-steps (0.5%) had no transformer-meter reading.
+
+**What this shows:**
+- **The outcome barely changes.** With a meter on every transformer the overloads removed are within ±1% of perfect measurement.
+- **The cost is switching.** A 1% meter error moves loads that sit near the 85% threshold back and forth across it. The persistence forecast copies that noise into the next day, so the controller reroutes and restores more often: 74% more switch operations in the normal year, 9% more in C4.
+- **Missed and false overloads balance.** "Overloads missed" are transformer-steps above the threshold that the operator saw at or below it. In C4, 97% of the missed ones were within 1.5 points of the threshold (median 0.5), and as many false ones went the other way. Where the smart meters stood in for a transformer meter, the error was larger: 2.3 points on average, against 0.34 for the transformer meters.
+
+A deadband on rerouting and restoring (act at 85%, restore only below, say, 80%) would remove most of this switching wear, and is noted for Phase 10.
+
+**Limits of the model:**
+- Every transformer has a meter, so the smart meters only fill gaps. A network metered by smart meters alone would depend much more on the head-end's estimates.
+- Delays are independent from meter to meter, apart from concentrator outages.
+- Consumer readings are the consumer's share of the transformer's load rather than separately simulated appliances.
+- Clock errors, tampering and theft are not modelled.
 
 ---
 
@@ -561,14 +631,15 @@ On first start the dashboard creates `project/data/twin.db` (SQLite), imports `d
 | Table | Holds |
 |:---|:---|
 | `assets`, `meters` | Network assets and the meter registry, with their IDs (for a city: every consumer's meter, with its consumer ID and type) |
-| `forecasts`, `measurements` | Forecasts per model version and horizon (pending until scored, then with their error); measured loads per source, with a quality flag |
+| `forecasts`, `measurements` | Forecasts per model version and horizon (pending until scored, then with their error); measured loads per source, with a quality flag (for a city with meters: `dt-scada` transformer meters, and `ami-estimate` smart-meter estimates per transformer, revised as late readings arrive) |
+| `meter_readings` | Smart-meter readings as the head-end received them, with their delay and flag (a city keeps the exceptions: late readings and stuck meters) |
 | `forecast_quantiles` | Interval bounds (P10, P90) per forecast hour, model version and method |
 | `recommendations`, `candidates` | Every recommendation (plan, before/after, checks, losses, confidence, binding constraint) and every option evaluated for it |
 | `actions` | Every switch operation executed: who/what triggered it (operator, auto, manual, rollback, reset) |
 | `events`, `event_assets` | The audit log with severity, and which transformers and switches each event concerns |
 | `alerts` | Risk and voltage/line alerts as they were observed |
 | `controller_state` | Mode, configuration, emergency stop and undo stack (one row per controller: `default` for the replay dashboard, `service` for the simulation service) |
-| `sim_state`, `sim_steps` | The simulation service's clock, run, scenario, settings and heartbeat; one row per completed step, with each transformer's measured and forecast loading, feeder results and switch states |
+| `sim_state`, `sim_steps` | The simulation service's clock, run, scenario, settings and heartbeat; one row per completed step, with each transformer's measured and forecast loading, feeder results and switch states (with meters also the loading the operator saw, where each value came from and the meter statistics) |
 | `commands` | Commands to the service and their results |
 | `model_registry` | Forecasting model versions with features, windows, metrics and file hash |
 
@@ -600,6 +671,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     ├── city/                      # Synthetic city (Phase 7)
     │   ├── generate.py            # city.yaml -> network.dss, consumers.csv, config/ (seeded)
     │   ├── demand.py              # 15-minute demand per transformer: consumer types, calendar, seasons, weather, events
+    │   ├── meters.py              # Transformer and smart-meter streams, the head-end's estimates and quality flags (Phase 8)
     │   ├── calibrate.py           # Fit the household profile on the eMARC data
     │   └── profiles/residential_emarc.csv  # The fitted household profile (committed)
     ├── cities/demo/               # The demo city
@@ -629,6 +701,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │       ├── decisions.py       # E: alerts, waiting proposal, recommendations with candidates
     │       ├── controls.py        # F: service, clock, scenario, mode, policy, threshold, emergency stop
     │       ├── audit.py           # G: filterable audit log
+    │       ├── data_quality.py    # H: meter streams, late and suspect readings, operator view against the truth
     │       └── replay.py          # What-if replay sandbox (the earlier single-page dashboard)
     ├── sim/                       # Closed-loop simulation (Phase 5)
     │   ├── orchestrator.py        # One step: measure, power flow, forecast, detect, validate, apply, record
@@ -681,6 +754,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── closed_loop.csv        # S1-S5 run hour by hour in automatic mode: measured overloads without/with control
     │   ├── performance.csv        # Step time per stage, throughput, memory, database growth, clock accuracy
     │   ├── closed_loop_city_demo.csv, performance_city_demo.csv  # The same for the demo city (May; one busy week)
+    │   ├── data_quality_city_demo.csv  # The city with perfect measurement and with its meters (May)
     │   ├── archive/               # Superseded result tables, with an explanation
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
     ├── tests/                     # Automated pytest suite (see "Running the Tests")
@@ -698,6 +772,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_simulation.py     # Clock, orchestrator, service commands, kill-and-restart recovery, benchmark
     │   ├── test_pages.py          # Every dashboard page headless; service settings; schema migration
     │   ├── test_city.py           # Generator, multi-substation engine, demand model, calibration, persistence forecast, city in the loop
+    │   ├── test_meters.py         # Meter streams, head-end estimates and flags, revisions, operator view against the truth
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
@@ -820,8 +895,8 @@ python sim/benchmark.py                    # docs/performance.csv (about 1 min, 
 ### 6. Running the Tests
 ```bash
 cd project
-python -m pytest                  # full suite, about 6 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
-python -m pytest -m "not slow"    # everything except those, about 1.5 min
+python -m pytest                  # full suite, about 7 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
+python -m pytest -m "not slow"    # everything except those, about 2 min
 ```
 `python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the pages headless: the sandbox through the S3 and S4 worst hours, and every live page against a database filled by a real service run (approving a proposal, changing the threshold, filtering the log).
 
@@ -880,6 +955,7 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = 85.0, use_mv: bool =
 
 ## 🔮 Future Enhancements
 
+- [ ] **Switching Deadband:** restore a reroute only once the load is well below the threshold, to stop meter noise from causing reroute–restore cycles (Phase 8 measured up to 74% more switch operations from a 1% meter error).
 - [ ] **Multi-Period Lookahead Optimization:** Incorporate a receding-horizon Model Predictive Control (MPC) formulation to penalize excessive switch wear over 24 hours.
 - [ ] **Distributed Energy Resources (DERs):** Integrate rooftop Solar PV arrays and Battery Energy Storage Systems (BESS) for localized peak shaving.
 - [ ] **Reinforcement Learning (RL):** Benchmark deep Q-networks (DQN) or PPO agents against the greedy heuristic for complex meshed distribution grids.

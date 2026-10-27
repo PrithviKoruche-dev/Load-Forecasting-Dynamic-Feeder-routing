@@ -6,7 +6,9 @@ Tables and what they hold:
     meters            meter registry: MTR-xxxxx -> household -> transformer (from prepare_data.py)
     forecasts         one row per (model version, target time, transformer, horizon); pending until scored
     forecast_quantiles  interval bounds (e.g. P10, P90) for those forecasts
-    measurements      measured load per (time, asset, source), with a quality flag
+    measurements      measured load per (time, asset, source), with a quality flag: transformer meters, and
+                      smart-meter estimates per transformer, revised as late readings arrive (Phase 8)
+    meter_readings    smart-meter readings as the head-end received them: interval, kW, flag, delay (Phase 8)
     recommendations   every recommendation the controller produced, with its full before/after detail
     candidates        every switching option evaluated for a recommendation, with its outcome and reason
     actions           every switch operation executed on the (simulated) network
@@ -23,12 +25,13 @@ Tables and what they hold:
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Table,
                         Text, UniqueConstraint)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 # What each version added. Opening an older database adds the missing tables and columns (additive changes
 # only; nothing is dropped or rewritten), then records the new version.
 MIGRATIONS = {
     2: "Phase 6: per-transformer data on every simulation step (sim_steps) and service settings (sim_state)",
     3: "Phase 7: consumer ID and type on meters (synthetic city)",
+    4: "Phase 8: smart-meter readings (meter_readings) and observed loads and data quality on sim_steps",
 }
 metadata = MetaData()
 
@@ -88,6 +91,17 @@ measurements = Table("measurements", metadata,
                      Column("quality", String(20), nullable=False, default="good"),
                      UniqueConstraint("time", "asset_id", "source", name="uq_measurement"))
 Index("ix_measurements_time", measurements.c.source, measurements.c.time)
+
+meter_readings = Table("meter_readings", metadata,
+                       Column("id", Integer, primary_key=True, autoincrement=True),
+                       Column("meter_id", String(20), nullable=False),
+                       Column("interval_time", DateTime, nullable=False),      # start of the 15-minute interval
+                       Column("kw", Float),
+                       Column("flag", String(12), nullable=False, default="ok"),   # ok | suspect (stuck meter)
+                       Column("received_at", DateTime),                         # simulated time it reached the head-end
+                       Column("delay_s", Float),                                # after the end of its interval
+                       UniqueConstraint("meter_id", "interval_time", name="uq_meter_reading"))
+Index("ix_meter_readings_time", meter_readings.c.interval_time)
 
 recommendations = Table("recommendations", metadata,
                         Column("rec_id", String(20), primary_key=True),
@@ -236,6 +250,10 @@ sim_steps = Table("sim_steps", metadata,
                   Column("feeders", JSON),                          # per-feeder kW, current, loading, lowest voltage
                   Column("switches", JSON),                         # switch states during hour t
                   Column("switches_after", JSON),                   # switch states now in force
+                  # added in schema version 4 (a synthetic city with meters; empty when the operator sees the truth):
+                  Column("observed_pct", JSON),                     # loading from the loads the operator observed
+                  Column("data_quality", JSON),                     # {tx: measured | ami-estimate | forecast | ...}
+                  Column("meter_stats", JSON),                      # readings, late, awaited, suspect, outages
                   Column("timings_ms", JSON),                       # per stage
                   Column("duration_ms", Float),
                   UniqueConstraint("service", "run_id", "sim_time", name="uq_sim_step"))

@@ -227,18 +227,25 @@ def city_store(city, tmp_path, monkeypatch):
 
 
 def test_persistence_forecast_and_its_band_use_only_known_loads(city_store):
+    """The forecast for t is what the operator recorded at t - 24 h (the transformer meters; the true load
+    with perfect measurement), and nothing recorded after t - 24 h changes it."""
     from sources import CitySource, PersistenceForecasts
     from orchestrator import benchmark_scenario
-    src = CitySource(city_store, "demo", benchmark_scenario(C1))
-    f = PersistenceForecasts(city_store, src)
     t = pd.Timestamp("2023-05-10 19:00")
-    assert f.point(t) == src.measured(t - pd.Timedelta(hours=24))
+    day = pd.Timedelta(hours=24)
+    perfect = CitySource(city_store, "demo", benchmark_scenario(C1), meters=False)
+    assert PersistenceForecasts(city_store, perfect).point(t) == perfect.measured(t - day)
+    src = CitySource(city_store, "demo", benchmark_scenario(C1))
+    assert src.meters is not None                                            # the demo city has meters
+    f = PersistenceForecasts(city_store, src)
+    recorded = {tx: float(v) for tx, v in src.history.loc[t - day].items()}
+    assert f.point(t) == recorded and f.point(t) != src.measured(t - day)
     up = f.upper(t)
     assert all(up[k] >= f.point(t)[k] for k in up)
-    src.table = src.table.copy()
-    src.table.loc[src.table.index > t - pd.Timedelta(hours=24)] *= 3          # everything after issue time
+    src._history = src.history.copy()
+    src._history.loc[src._history.index > t - day] *= 3                      # everything after issue time
     f._key = None
-    assert f.upper(t) == up and f.point(t) == src.measured(t - pd.Timedelta(hours=24))
+    assert f.upper(t) == up and f.point(t) == recorded
     assert city_store.meters()["consumer_type"].notna().all() and len(city_store.meters()) == len(src.demand.consumers)
 
 
@@ -270,13 +277,14 @@ def test_the_service_runs_the_city(city_store, city):
     assert len(steps) == 8 and (pd.to_datetime(steps["sim_time"]).diff().dropna() == pd.Timedelta(minutes=15)).all()
     assert len(steps.iloc[-1]["measured_pct"]) == len(config.grid()["transformers"])
     with city_store.engine.connect() as c:
-        n_meas = c.exec_driver_sql("select count(*) from measurements where source = 'city-meters'").scalar_one()
+        n_meas = c.exec_driver_sql("select count(*) from measurements where source = 'dt-scada'").scalar_one()
         n_fc = c.exec_driver_sql("select count(*) from forecasts where model_version = 'persistence-24h'").scalar_one()
         first = c.exec_driver_sql("select min(target_time) from forecasts where model_version = 'persistence-24h'").scalar_one()
     assert str(first).startswith("2023-05-10 18:00")                        # issued at 18:00 on the 9th, 24 h ahead
     n = len(config.grid()["transformers"])
     assert n_meas == 8 * n and n_fc == 8 * n                                # readings arrive; forecasts issued 24 h ahead
     last = steps.iloc[-1]
+    assert set(last["data_quality"]) == set(config.grid()["transformers"]) and last["meter_stats"]["readings"] > 4000
     normal = {k: v["normal"] for k, v in config.grid()["switches"].items()}
     assert all(normal[k] != v for k, v in (last["switches_after"] or {}).items())   # only switches away from normal
     import common

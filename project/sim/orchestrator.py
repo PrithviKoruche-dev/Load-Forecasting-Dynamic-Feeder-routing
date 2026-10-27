@@ -2,14 +2,16 @@
 
 Step t is the boundary at the end of hour t:
 
-    1 measure      the meters' loads for hour t (scenario applied), which ran in the configuration in force
+    1 measure      the loads of hour t (scenario applied), which ran in the configuration in force; a synthetic
+                   city with meters (Phase 8) has two views: the true loads, which the network carried, and
+                   what the operator observed (transformer meters, else smart-meter estimates, else the forecast)
     2 power flow   OpenDSS on the measured loads in that configuration, and in the normal configuration
                    (what would have happened without control)
     3 forecast     the 24 h-ahead forecast for the next hour t + 1 (issued at t - 23 h) and its upper bound;
                    the live source also issues the forecast for t + 24 h; forecasts whose hour has passed
                    are scored
     4 detect       risk classes for hour t (its forecast against its measurement, as on the dashboard) and
-                   voltage/line alerts from the measured state; stored as alerts
+                   voltage/line alerts, from the observed state (what the operator knows); stored as alerts
     5 validate     if the next hour's forecast breaks a limit, or the network is not in its normal
                    configuration, the controller (grid/decisions.py) evaluates the candidates
     6 apply or     monitor: nothing; recommend: a proposal awaits the operator (the service pauses the clock
@@ -17,8 +19,10 @@ Step t is the boundary at the end of hour t:
     7 record       one sim_steps row with what was measured, forecast and decided, and how long each stage took
 
 Deciding at the boundary means a switching change, automatic or approved, is in force for the whole of the
-hour it was computed for, and the next step measures its effect. Rerouting decisions use the point forecast;
-the upper bound only raises the forecast risk class (decision recorded in the README, Phase 4/5).
+hour it was computed for, and the next step measures its effect. The outcome (measured_*) is judged on the
+true loads; the operator's view is recorded beside it (observed_pct, data_quality, meter_stats). Rerouting
+decisions use the point forecast; the upper bound only raises the forecast risk class (decision recorded in
+the README, Phase 4/5).
 """
 import sys
 import time
@@ -155,14 +159,19 @@ class Orchestrator:
 
         # 1 measure
         raw = self.demand.measured(t)
-        if hasattr(self.demand, "record"):                      # synthetic city: the readings arrive now
-            self.demand.record(t, raw)
         measured = self._apply_scenario(raw, t)
+        observed, quality, meter_stats = measured, None, None
+        if hasattr(self.demand, "observe"):                     # synthetic city: the readings that arrive now
+            seen = self.demand.observe(t, self.forecasts.point(t))
+            if seen is not None and seen["stats"] is not None:  # meters: the operator's view differs from the truth
+                observed = self._apply_scenario(seen["loads"], t)
+                quality, meter_stats = seen["quality"], seen["stats"]
         lap("measure")
 
-        # 2 power flow: hour t as it ran, and without control
+        # 2 power flow: hour t as it ran (true loads), without control, and as the operator observed it
         meas = self._state(measured, config_before)
         meas_normal = meas if not config_before else self._state(measured, [])
+        obs = meas if observed is measured else self._state(observed, config_before)
         fc_now = self._apply_scenario(self.forecasts.point(t), t)
         up_now = self._apply_scenario(self.forecasts.upper(t), t)
         fc_now_state = self._state(fc_now, config_before)
@@ -181,9 +190,9 @@ class Orchestrator:
         # 4 detect: hour t, forecast against measurement, and network alerts from the measured state
         risk, n_alerts = {}, 0
         if fc_now_state is not None:
-            risk = self.risk.transformers(fc_now_state["loading_by_tx"], meas["loading_by_tx"] if meas else None, thr,
+            risk = self.risk.transformers(fc_now_state["loading_by_tx"], obs["loading_by_tx"] if obs else None, thr,
                                           up_now_state["loading_by_tx"] if up_now_state else None)
-            net = self.risk.network_alerts(meas or fc_now_state)
+            net = self.risk.network_alerts(obs or fc_now_state)
             rows = ([{"asset": ids.transformer_id(tx), "kind": "transformer", "level": r["risk_class"],
                       "value": max(v for v in (r["forecast_pct"], r["measured_pct"]) if v is not None),
                       "text": f"{tx}: forecast {r['forecast_pct']}%, measured {r['measured_pct']}% ({r['risk_class']})"}
@@ -242,7 +251,8 @@ class Orchestrator:
                "tx_detail": None if meas is None else meas.get("transformers"),
                "feeders": None if meas is None else meas.get("feeders"),
                "switches": self._off_normal(config_before),                # only switches away from normal
-               "switches_after": self._off_normal(config_after)}
+               "switches_after": self._off_normal(config_after),
+               "observed_pct": None if obs is meas else by_tx(obs), "data_quality": quality, "meter_stats": meter_stats}
         lap("record")                                          # time to build the row; the write is timed below
         t_write = time.perf_counter()
         row["timings_ms"] = timings

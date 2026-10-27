@@ -5,6 +5,7 @@ retention:
   measurements_days: 60
   alerts_days: 60
   forecasts_days: 60
+  meter_readings_days: 2
 forecast_import:
   model_version: persistence-24h
-  measurement_source: city-meters
+  measurement_source: dt-scada

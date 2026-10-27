@@ -1,46 +1,46 @@
 metric,value,unit
 machine,"Linux 6.18.44-fc-v165, x86_64, 2 CPUs 7.8 GB RAM",
 python,3.13.17,
-step_measure_mean,0.694,ms
-step_measure_p95,0.677,ms
-step_measure_max,9.337,ms
-step_power_flow_mean,39.024,ms
-step_power_flow_p95,47.639,ms
-step_power_flow_max,896.946,ms
-step_forecast_mean,27.297,ms
-step_forecast_p95,28.67,ms
-step_forecast_max,46.655,ms
-step_detect_mean,0.437,ms
-step_detect_p95,0.575,ms
-step_detect_max,9.273,ms
-step_decide_mean,36.405,ms
-step_decide_p95,190.239,ms
-step_decide_max,1060.254,ms
-step_record_mean,0.517,ms
-step_record_p95,0.549,ms
-step_record_max,9.327,ms
-step_total_mean,104.376,ms
-step_total_p95,270.789,ms
-step_total_max,1138.192,ms
+step_measure_mean,19.232,ms
+step_measure_p95,34.135,ms
+step_measure_max,1525.586,ms
+step_power_flow_mean,53.799,ms
+step_power_flow_p95,65.075,ms
+step_power_flow_max,80.899,ms
+step_forecast_mean,31.024,ms
+step_forecast_p95,37.757,ms
+step_forecast_max,99.672,ms
+step_detect_mean,0.64,ms
+step_detect_p95,0.814,ms
+step_detect_max,23.867,ms
+step_decide_mean,37.492,ms
+step_decide_p95,191.935,ms
+step_decide_max,918.583,ms
+step_record_mean,0.719,ms
+step_record_p95,0.877,ms
+step_record_max,32.483,ms
+step_total_mean,142.909,ms
+step_total_p95,312.927,ms
+step_total_max,1607.466,ms
 steps,672,steps
 scenario,C4 Heatwave and EV adoption,
-throughput,9.564,steps/s
-max_speed_factor,8622.673,simulated s per wall s
-simulated_year_wall_time_at_max,60.956,min
+throughput,6.981,steps/s
+max_speed_factor,6297.723,simulated s per wall s
+simulated_year_wall_time_at_max,83.459,min
 accelerated_budget_per_60min_step,9863.014,ms
 accelerated_budget_per_15min_step,2465.753,ms
-accelerated_budget_used_60min,1.058,%
-accelerated_budget_used_this_step,4.233,% of 2466 ms
-memory_rss_before_engine,135.441,MB
-memory_rss_start,281.75,MB
-memory_rss_peak,346.414,MB
-memory_rss_end,346.414,MB
-memory_growth_per_1000_steps,9.581,MB (after warm-up)
-database_growth_per_step,56.357,KB
-database_growth_per_simulated_year,1928.465,MB
+accelerated_budget_used_60min,1.449,%
+accelerated_budget_used_this_step,5.796,% of 2466 ms
+memory_rss_before_engine,135.246,MB
+memory_rss_start,292.41,MB
+memory_rss_peak,366.488,MB
+memory_rss_end,366.488,MB
+memory_growth_per_1000_steps,2.241,MB (after warm-up)
+database_growth_per_step,112.244,KB
+database_growth_per_simulated_year,3840.838,MB
 clock_target_factor,3600.0,simulated s per wall s
 clock_interval,250.0,ms
-clock_achieved_factor,3708.092,simulated s per wall s
-clock_speed_error,3.003,%
-clock_wall_for_steps,7.836,s
+clock_achieved_factor,3694.195,simulated s per wall s
+clock_speed_error,2.617,%
+clock_wall_for_steps,8.546,s
 clock_expected_wall_for_steps,7.25,s

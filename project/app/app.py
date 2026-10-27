@@ -11,6 +11,8 @@ and their buttons only send commands to the service):
     E Alerts and decisions    alerts, the pending proposal, every recommendation with its candidates
     F Controls                service, clock, scenario, mode, approval policy, threshold, emergency stop
     G Audit log               events, recommendations, switch operations, alerts and commands, with filters
+    H Data quality            meter streams: where each value came from, late and suspect readings, the
+                              operator's view against the truth (a synthetic city with meters, Phase 8)
 Sandbox:
     What-if replay            any hour of the test period with its own controller (separate from the live network)
 """
@@ -36,6 +38,7 @@ pages = {
         st.Page(VIEWS / "decisions.py", title="Alerts and decisions", icon=":material/rule:"),
         st.Page(VIEWS / "controls.py", title="Controls", icon=":material/tune:"),
         st.Page(VIEWS / "audit.py", title="Audit log", icon=":material/history:"),
+        st.Page(VIEWS / "data_quality.py", title="Data quality", icon=":material/fact_check:"),
     ],
     "Sandbox": [
         st.Page(VIEWS / "replay.py", title="What-if replay", icon=":material/science:"),

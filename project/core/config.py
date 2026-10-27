@@ -350,8 +350,9 @@ def storage():
     _number(c, f, "batch_size", low=1)
     for k in ("measurements_days", "alerts_days"):
         _number(c, f, "retention", k, low=0)
-    c["retention"].setdefault("forecasts_days", 0)
-    _number(c, f, "retention", "forecasts_days", low=0)
+    for k in ("forecasts_days", "meter_readings_days"):
+        c["retention"].setdefault(k, 0)
+        _number(c, f, "retention", k, low=0)
     _need(isinstance(_get(c, f, "forecast_import", "model_version"), str), f, "forecast_import.model_version is required")
     _need(isinstance(_get(c, f, "forecast_import", "measurement_source"), str), f,
           "forecast_import.measurement_source is required")

@@ -15,6 +15,7 @@ Forecast sources:
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,14 +128,23 @@ class LiveForecasts(PrecomputedForecasts):
 
 
 class CitySource:
-    """Measured loads of a synthetic city (Phase 7): cities/<name>/, 15-minute steps over a year. The
-    scenario's events (heatwave, EV charging, ...) change the demand itself; each step's measurements are
-    written to the database as they arrive, so forecasts can be scored against them."""
-    name = "city"
+    """Loads of a synthetic city (Phase 7): cities/<name>/, 15-minute steps over a year. The scenario's events
+    (heatwave, EV charging, ...) change the demand itself.
 
-    def __init__(self, store, city, scenario=None):
+    Two views of the same loads (Phase 8):
+        measured(t)      the true load of every transformer in interval t: what the network carries, used for the
+                         power flow and to judge the outcome
+        observe(t, sub)  what the operator knows at the end of interval t: the transformer meter if it reports,
+                         else the smart meters' estimate of the interval before, else `sub` (the forecast), else
+                         the last value seen; written to the database as it arrives
+    With city.yaml `meters` disabled (or meters=False) the operator sees the true loads (perfect measurement)."""
+    name = "city"
+    ESTIMATE_SOURCE = "ami-estimate"
+
+    def __init__(self, store, city, scenario=None, meters=None):
         sys.path.insert(0, str(ROOT / "city"))
         from demand import CityDemand
+        from meters import HeadEnd, MeterModel, settings
         from core import config
         self.store, self.city = store, city
         self.demand = CityDemand(city)
@@ -143,13 +153,22 @@ class CitySource:
         missing = set(self.transformers) - set(self.demand.transformers)
         if missing:
             raise RuntimeError(f"cities/{city}/consumers.csv has no consumers for {sorted(missing)}: generate again")
+        on = settings(self.demand.spec)["enabled"] if meters is None else bool(meters)
+        self.meters = MeterModel(self.demand) if on else None
+        self.head = HeadEnd(self.meters) if on else None
+        self.store_readings = settings(self.demand.spec)["store_readings"]
+        self._col = [self.demand.transformers.index(tx) for tx in self.transformers] if on else None
         self.events = ()
         self.source = store.import_cfg["measurement_source"]
+        self.last_seen = {}
         self.set_events(scenario.events if scenario is not None else ())
 
     def set_events(self, events):
         self.events = tuple(events)
         self.table = self.demand.matrix(self.events)[self.transformers]
+        self._history = None
+        if self.head is not None:
+            self.head.position = None                    # the readings depend on the events: rebuild on next step
 
     def times(self):
         from core import config
@@ -160,21 +179,115 @@ class CitySource:
         return t[(t >= lo) & (t <= hi)]
 
     def measured(self, t):
+        """True load of every transformer in interval t (kW)."""
         t = pd.Timestamp(t)
         if t not in self.table.index:
             return None
         return {tx: float(v) for tx, v in self.table.loc[t].items()}
 
-    def record(self, t, loads):
-        """The meters' readings for t arrive: store them."""
-        if loads is not None:
-            self.store.write_measurements([{"time": pd.Timestamp(t).to_pydatetime(), "asset_id": ids.transformer_id(tx),
-                                            "source": self.source, "kw": round(kw, 3), "quality": "good"}
-                                           for tx, kw in loads.items()])
+    @property
+    def history(self):
+        """The loads the operator has recorded over the year: the transformer meters, a gap (sensor out) filled
+        with the reading of the same time the day before. Without meters: the true loads."""
+        if self.meters is None:
+            return self.table
+        if self._history is None:
+            h = self.meters.transformer_series(self.demand.matrix(self.events))[self.transformers]
+            day = int(pd.Timedelta(days=1) / self.resolution)
+            for _ in range(7):
+                if not h.isna().any().any():
+                    break
+                h = h.fillna(h.shift(day))
+            self._history = h.ffill().bfill()
+        return self._history
+
+    def observe(self, t, substitute=None):
+        """The end of interval t: the readings that arrive now. Writes them to the database and returns
+        {"loads": {tx: kW}, "quality": {tx: measured | ami-estimate | forecast | last-value}, "stats": {...}}."""
+        t = pd.Timestamp(t)
+        true = self.measured(t)
+        if true is None:
+            return None
+        when = t.to_pydatetime()
+        if self.meters is None:                         # perfect measurement
+            self.store.write_measurements([{"time": when, "asset_id": ids.transformer_id(tx), "source": self.source,
+                                            "kw": round(kw, 3), "quality": "good"} for tx, kw in true.items()])
+            return {"loads": true, "quality": {tx: "measured" for tx in true}, "stats": None}
+        i = self.demand.times.get_loc(t)
+        head = self.head
+        if head.position is None or head.position != i - 1:
+            head.rebuild(i - 1, self.events)
+        delivered, estimates = head.step(i, self.events)
+        full = self.demand.matrix(self.events).iloc[i].to_numpy()
+        dt = self.meters.transformer_readings(i, full)[self._col]
+        prev = estimates.get(i - 1) or (head.estimate(i - 1) if i - 1 in head.agg else {})
+        loads, quality = {}, {}
+        for k, tx in enumerate(self.transformers):
+            if not np.isnan(dt[k]):
+                loads[tx], quality[tx] = float(dt[k]), "measured"
+            elif tx in prev and prev[tx][1] in ("good", "estimated"):
+                loads[tx], quality[tx] = prev[tx][0], "ami-estimate"
+            elif substitute and substitute.get(tx) is not None:
+                loads[tx], quality[tx] = float(substitute[tx]), "forecast"
+            elif tx in self.last_seen:
+                loads[tx], quality[tx] = self.last_seen[tx], "last-value"
+            else:                                        # nothing known yet (only before the first reading)
+                loads[tx], quality[tx] = 0.0, "missing"
+        self.last_seen.update(loads)
+        # database: transformer meters, smart-meter estimates (revised as late readings arrive), raw readings
+        aid = {tx: ids.transformer_id(tx) for tx in self.transformers}
+        self.store.write_measurements([{"time": when, "asset_id": aid[tx], "source": self.source,
+                                        "kw": None if np.isnan(dt[k]) else round(float(dt[k]), 3),
+                                        "quality": "missing" if np.isnan(dt[k]) else "good"}
+                                       for k, tx in enumerate(self.transformers)])
+        rows = []
+        for j, est in estimates.items():
+            tj = self.demand.times[j].to_pydatetime()
+            rows += [{"time": tj, "asset_id": aid[tx], "source": self.ESTIMATE_SOURCE,
+                      "kw": None if kw is None else round(kw, 3), "quality": q}
+                     for tx, (kw, q, _) in est.items() if tx in aid]
+        self.store.upsert_measurements(rows)
+        n_rows = self.store.write_meter_readings(self._reading_rows(delivered))
+        self.last_stats = stats = self._stats(i, delivered, prev, dt, n_rows)
+        return {"loads": loads, "quality": quality, "stats": stats}
+
+    def _reading_rows(self, delivered):
+        """Readings to store (city.yaml meters.store_readings): all, none, or the exceptions: readings that came
+        later than one interval after their own, or from a meter flagged as stuck."""
+        if self.store_readings == "none":
+            return []
+        ids_, times = self.meters.meter_ids, self.demand.times
+        step_ns = self.resolution.value
+        rows = []
+        for j, idx, kw, arrive, suspect in delivered:
+            end = (times[j] + self.resolution).value
+            tj = times[j].to_pydatetime()
+            if self.store_readings == "exceptions":
+                keep = (arrive - end > step_ns) | suspect
+                idx, kw, arrive, suspect = idx[keep], kw[keep], arrive[keep], suspect[keep]
+            for m, v, a, sus in zip(idx, kw, arrive, suspect):
+                rows.append({"meter_id": ids_[m], "interval_time": tj, "kw": float(v),
+                             "flag": "suspect" if sus else "ok",
+                             "received_at": pd.Timestamp(int(a) // 1000 * 1000).to_pydatetime(), "delay_s": round((a - end) / 1e9, 1)})
+        return rows
+
+    def _stats(self, i, delivered, prev, dt, n_rows):
+        head, m = self.head, self.meters
+        now = (self.demand.times[i] + self.resolution).value
+        late = sum(len(x[1]) for x in delivered if x[0] < i - 1)
+        down = sum(any(a <= now < b for a, b in w) for w in m.outages)
+        q = {}
+        for _, qq, _ in prev.values():
+            q[qq] = q.get(qq, 0) + 1
+        return {"dt_missing": int(np.isnan(dt).sum()), "readings": int(sum(len(x[1]) for x in delivered)),
+                "late_readings": int(late), "awaited": int(sum((a >= 0).sum() for _, a in head.pending.values())),
+                "suspect_meters": int(head.suspect.sum()), "concentrators_down": int(down),
+                "ami_quality": q, "stored": n_rows}
 
 
 class PersistenceForecasts:
-    """24 h-ahead forecast for the synthetic city: the load at the same time the day before, with a P10-P90 band
+    """24 h-ahead forecast for the synthetic city: the load recorded at the same time the day before (the
+    transformer meters, Phase 8; gaps filled from the day before that), with a P10-P90 band
     by rolling conformal calibration (config forecasting.yaml intervals: the ratio actual / forecast over the
     last window_days, per transformer and block of the day, using only loads known at issue time t - 24 h).
     Phase 9 replaces it with a model trained on the simulator's history."""
@@ -190,7 +303,7 @@ class PersistenceForecasts:
     def _refresh(self):
         if self._key == self.demand.events:
             return
-        a = self.demand.table
+        a = getattr(self.demand, "history", self.demand.table)    # what the operator has recorded
         lag = int(HORIZON / self.demand.resolution)
         self.point_ = a.shift(lag)
         ratio = (a / self.point_).replace([float("inf")], float("nan"))

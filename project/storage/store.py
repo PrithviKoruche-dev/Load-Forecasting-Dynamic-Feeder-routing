@@ -236,6 +236,55 @@ class Store:
             for chunk in _chunks(list(rows), self.batch_size):
                 c.execute(stmt, chunk)
 
+    def upsert_measurements(self, rows):
+        """Insert, or replace the kW and quality of, measurements (time, asset, source): estimates that are revised
+        as late readings arrive."""
+        rows = list(rows)
+        if not rows:
+            return 0
+        stmt = self._insert(S.measurements, upsert_keys=["time", "asset_id", "source"], update_cols=["kw", "quality"])
+        with self.engine.begin() as c:
+            for chunk in _chunks(rows, self.batch_size):
+                c.execute(stmt, chunk)
+        return len(rows)
+
+    def write_meter_readings(self, rows):
+        """Smart-meter readings as received (duplicates of meter + interval are skipped). Returns the rows given."""
+        rows = list(rows)
+        if not rows:
+            return 0
+        stmt = self._insert(S.meter_readings, ignore=True)
+        with self.engine.begin() as c:
+            for chunk in _chunks(rows, self.batch_size):
+                c.execute(stmt, chunk)
+        return len(rows)
+
+    def meter_readings(self, sim_from=None, sim_to=None, meter_id=None, flag=None, limit=None):
+        r = S.meter_readings
+        q = select(r).order_by(r.c.interval_time, r.c.meter_id)
+        if sim_from is not None:
+            q = q.where(r.c.interval_time >= pd.Timestamp(sim_from).to_pydatetime())
+        if sim_to is not None:
+            q = q.where(r.c.interval_time <= pd.Timestamp(sim_to).to_pydatetime())
+        if meter_id is not None:
+            q = q.where(r.c.meter_id == meter_id)
+        if flag is not None:
+            q = q.where(r.c.flag == flag)
+        if limit:
+            q = q.limit(limit)
+        with self.engine.connect() as c:
+            return pd.DataFrame(c.execute(q).mappings().all(), columns=[col.name for col in r.columns])
+
+    def measurements(self, source, sim_from=None, sim_to=None):
+        m = S.measurements
+        q = select(m.c.time, m.c.asset_id, m.c.kw, m.c.quality).where(m.c.source == source).order_by(m.c.time)
+        if sim_from is not None:
+            q = q.where(m.c.time >= pd.Timestamp(sim_from).to_pydatetime())
+        if sim_to is not None:
+            q = q.where(m.c.time <= pd.Timestamp(sim_to).to_pydatetime())
+        with self.engine.connect() as c:
+            return pd.DataFrame(c.execute(q).mappings().all(), columns=["time", "asset_id", "kw", "quality"])
+
     def forecast_frame(self, model_version=None, source=None):
         """timestamp, transformer_id, asset_id, predicted_kw, actual_kw: the same shape as data/forecast.csv."""
         model_version = model_version or self.import_cfg["model_version"]
@@ -644,6 +693,11 @@ class Store:
             if days:
                 cut = now_sim - dt.timedelta(days=days)
                 out["measurements"] = c.execute(delete(S.measurements).where(S.measurements.c.time < cut)).rowcount
+            days = self.retention.get("meter_readings_days", 0)
+            if days:
+                cut = now_sim - dt.timedelta(days=days)
+                out["meter_readings"] = c.execute(delete(S.meter_readings)
+                                                  .where(S.meter_readings.c.interval_time < cut)).rowcount
             days = self.retention["alerts_days"]
             if days:
                 cut = (now_sim - dt.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")

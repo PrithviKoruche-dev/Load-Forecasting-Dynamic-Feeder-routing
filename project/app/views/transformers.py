@@ -22,12 +22,21 @@ def table(last):
         t = r["transformer"]
         g = lambda col: (last.get(col) or {}).get(t)  # noqa: E731
         det = (last.get("tx_detail") or {}).get(t, {})
-        rows.append({"transformer": t, "asset ID": r["asset_id"], "feeder": r["feeder"], "rating kVA": r["rating_kva"],
-                     "load kW": det.get("kw"), "load kVA": det.get("kva"), "loading %": g("measured_pct"),
-                     "forecast %": g("forecast_pct"), "P90 %": g("upper_pct"), "next hour %": g("next_forecast_pct"),
-                     "risk class": C.RISK_LABELS.get((last.get("risk") or {}).get(t), "-"),
-                     "time": f"{last['sim_time']:%Y-%m-%d %H:%M}"})
+        seen = last.get("observed_pct")
+        row = {"transformer": t, "asset ID": r["asset_id"], "feeder": r["feeder"], "rating kVA": r["rating_kva"],
+               "load kW": det.get("kw"), "load kVA": det.get("kva"),
+               "loading %": seen.get(t) if seen else g("measured_pct"),
+               "forecast %": g("forecast_pct"), "P90 %": g("upper_pct"), "next hour %": g("next_forecast_pct"),
+               "risk class": C.RISK_LABELS.get((last.get("risk") or {}).get(t), "-")}
+        if seen:                                                   # meters (Phase 8): the operator's view and the truth
+            row["data"] = DATA.get((last.get("data_quality") or {}).get(t), "-")
+            row["true %"] = g("measured_pct")
+        rows.append({**row, "time": f"{last['sim_time']:%Y-%m-%d %H:%M}"})
     return pd.DataFrame(rows)
+
+
+DATA = {"measured": "meter", "ami-estimate": "smart meters", "forecast": "forecast", "last-value": "last value",
+        "missing": "none"}
 
 
 def body():
@@ -46,6 +55,9 @@ def body():
     rows = getattr(getattr(ev, "selection", None), "rows", None) or []
     if rows and df.iloc[rows[0]]["transformer"] != st.session_state.get("tx_last_row"):
         st.session_state["tx_pick"] = st.session_state["tx_last_row"] = df.iloc[rows[0]]["transformer"]
+    if last.get("observed_pct"):
+        st.caption("With meters, loading % is what the operator saw (data: where it came from, see the Data quality "
+                   "page) and true % what the network carried; load kW is the true load.")
     st.caption(f"Loading % is measured, in the configuration in force during the hour; forecast % is the 24 h-ahead "
                f"forecast for the same hour; next hour % is the forecast for the coming hour in the configuration now "
                f"in force. Threshold {thr:g}%, hard limit {C.HARD_LIMIT:g}%.")
@@ -57,9 +69,11 @@ def body():
     if hist.empty:
         return
     pick = lambda col: [((r or {}).get(tx)) for r in hist[col]]  # noqa: E731
+    seen = ([("seen by the operator", pick("observed_pct"), "#2ca02c", "dot")]
+            if "observed_pct" in hist and hist["observed_pct"].notna().any() else [])
     st.plotly_chart(plots.lines_chart(
         hist["sim_time"], [("measured loading", pick("measured_pct"), "#1f77b4", None),
-                           ("forecast", pick("forecast_pct"), "#ff7f0e", None)],
+                           ("forecast", pick("forecast_pct"), "#ff7f0e", None)] + seen,
         threshold=thr, band=("P90 upper bound", pick("forecast_pct"), pick("upper_pct"))), key="tx_hist")
     over = sum(1 for v in pick("measured_pct") if v is not None and v > thr)
     st.caption(f"{tx}: {over} hours measured above {thr:g}% in this period; moved block in force during "

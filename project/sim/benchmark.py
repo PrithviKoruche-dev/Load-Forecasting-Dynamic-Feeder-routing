@@ -61,7 +61,8 @@ def loop_benchmark(steps=None, scenario=None, db_dir=None, start=None):
         rss_start, rss_peak = _rss_mb(), 0.0
         times = [t for t in o.demand.times() if start is None or t >= pd.Timestamp(start)]
         times = times[:steps] if steps else times
-        warm = min(100, len(times) // 5)                  # memory growth is measured after a warm-up
+        warm = min(250, len(times) // 3)                  # memory growth is measured after a warm-up (a city's
+                                                          # head-end fills its 48 h window of readings first)
         rss_warm = None
         t0 = time.perf_counter()
         for i, t in enumerate(times):
