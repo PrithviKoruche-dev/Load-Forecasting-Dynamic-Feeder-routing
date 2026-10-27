@@ -1,7 +1,8 @@
 """Plot helpers for the operator dashboard (Plotly).
 
-The drawing layout below is specific to the two-feeder, six-transformer network; colour bands come
-from config/operations.yaml.
+topology_figure draws the classic two-feeder, six-transformer network (its layout is below); network_figure
+draws any generated network (a synthetic city) from the layout in its grid.yaml. Colour bands come from
+config/operations.yaml.
 """
 import sys
 from pathlib import Path
@@ -22,7 +23,6 @@ RISK_COLOURS = {"normal": GREEN, "elevated": AMBER, "approaching": ORANGE,
 
 BUS = {"SUB": (0, 0), "A1": (1, 1), "A2": (2, 1), "A3": (3, 1), "B1": (1, -1), "B2": (2, -1), "B3": (3, -1)}
 TX_POS = {"T1": (1, 2.4), "T2": (2, 2.4), "T3": (3, 2.4), "T4": (1, -2.4), "T5": (2, -2.4), "T6": (3, -2.4)}
-TX_BUS = {t: tx["mv_bus"] for t, tx in config.grid()["transformers"].items()}
 MV_LINES = [("SUB", "A1"), ("A1", "A2"), ("A2", "A3"), ("SUB", "B1"), ("B1", "B2"), ("B2", "B3")]
 MV_SWITCH_ON = {("A1", "A2"): "A2", ("B1", "B2"): "B2"}     # MV segments that are sectionalising switches
 # LV tie paths: (key, polyline, label). Cross-feeder T3<->T6 goes round the right-hand side.
@@ -65,7 +65,8 @@ def topology_figure(loading, moves, threshold, risk_by_tx=None, switch_state=Non
           "solid" if tie_closed else "dash")
     fig.add_annotation(x=3.0, y=0, text="TIE1 (closed)" if tie_closed else "TIE1 (open)", showarrow=False,
                        xanchor="left", xshift=6, font=dict(size=10, color=BLUE if tie_closed else GREY))
-    for tx, bus in TX_BUS.items():                           # bus -> transformer
+    tx_bus = {t: tx["mv_bus"] for t, tx in config.grid()["transformers"].items()}   # read now, not at import
+    for tx, bus in tx_bus.items():                           # bus -> transformer
         _line(fig, [BUS[bus], TX_POS[tx]], "#5b6472", 1.5)
     for tx, (pts, label) in LV_TIES.items():                 # LV tie switches
         active = tx in movers
@@ -90,6 +91,66 @@ def topology_figure(loading, moves, threshold, risk_by_tx=None, switch_state=Non
     fig.update_xaxes(visible=False, range=[-0.5, 4.2])
     fig.update_yaxes(visible=False, range=[-3.4, 3.4])
     fig.update_layout(height=470, margin=dict(l=0, r=0, t=10, b=0), showlegend=False)
+    return fig
+
+
+def network_figure(grid, loading, moves, threshold, risk_by_tx=None, switch_state=None):
+    """Single-line diagram of any generated network (a synthetic city), from grid.yaml's `layout`: one row per
+    feeder from its substation, sectionalisers dashed when open, ties between feeder ends, transformers above
+    their bus, and the LV moves in force in blue. Click a transformer to select it."""
+    lay, state = grid["layout"], switch_state or {}
+    B, TP = {k: tuple(v) for k, v in lay["buses"].items()}, {k: tuple(v) for k, v in lay["transformers"].items()}
+    subs = config.substations(grid)
+    secs = {tuple(sw["buses"]): n for n, sw in grid["switches"].items() if sw["kind"] == "mv_sectionaliser"}
+    fig = go.Figure()
+    for f, fd in grid["feeders"].items():
+        path = [subs[fd["substation"]]["bus"]] + list(fd["buses"])
+        for a, b in zip(path, path[1:]):
+            sw = secs.get((a, b))
+            if sw and state.get(sw) == "open":
+                _line(fig, [B[a], B[b]], GREY, 2, "dash")
+                fig.add_annotation(x=(B[a][0] + B[b][0]) / 2, y=B[a][1], text=f"{sw} open", showarrow=False,
+                                   yshift=-12, font=dict(size=9, color=GREY))
+            else:
+                _line(fig, [B[a], B[b]], "#5b6472", 3)
+        fig.add_annotation(x=B[path[1]][0] - 0.45, y=B[path[1]][1], text=f, showarrow=False, yshift=10,
+                           font=dict(size=10, color="#5b6472"))
+    right = max(x for x, _ in B.values()) + 0.5
+    for n, sw in grid["switches"].items():
+        if sw["kind"] != "mv_tie":
+            continue
+        (xa, ya), (xb, yb) = B[sw["buses"][0]], B[sw["buses"][1]]
+        closed = state.get(n) == "closed"
+        _line(fig, [(xa, ya), (right, ya), (right, yb), (xb, yb)], BLUE if closed else GREY, 3 if closed else 1.5,
+              "solid" if closed else "dash")
+        fig.add_annotation(x=right, y=(ya + yb) / 2, text=f"{n} ({'closed' if closed else 'open'})", showarrow=False,
+                           xanchor="left", xshift=4, font=dict(size=9, color=BLUE if closed else GREY))
+    for t, tx in grid["transformers"].items():
+        _line(fig, [B[tx["mv_bus"]], TP[t]], "#5b6472", 1.2)
+    for k in moves:
+        if ">" in k:
+            s_, d_ = k.split(">")
+            (x0, y0), (x1, y1) = TP[s_], TP[d_]
+            _line(fig, [(x0, y0 + 0.28), (x1, y1 + 0.28)], BLUE, 3)
+            fig.add_annotation(x=(x0 + x1) / 2, y=y0 + 0.28, text=f"<b>{k}</b>", showarrow=False, yshift=9,
+                               font=dict(size=10, color=BLUE))
+    fig.add_trace(go.Scatter(x=[B[s["bus"]][0] for s in subs.values()], y=[B[s["bus"]][1] for s in subs.values()],
+                             mode="markers+text", text=list(subs), textposition="middle left",
+                             marker=dict(size=16, symbol="square", color="#5b6472"), hoverinfo="skip"))
+    names = list(grid["transformers"])
+    colours = [RISK_COLOURS.get((risk_by_tx or {}).get(t)) or colour(loading.get(t, 0), threshold) for t in names]
+    fig.add_trace(go.Scatter(
+        x=[TP[t][0] for t in names], y=[TP[t][1] for t in names], mode="markers+text", customdata=names,
+        name="transformers", text=[f"<b>{t}</b><br>{loading.get(t, 0):.0f}%" for t in names],
+        textfont=dict(color="white", size=9), marker=dict(size=34, color=colours, line=dict(width=1.5, color="white")),
+        hovertext=[f"{t} ({grid['transformers'][t]['rating_kva']} kVA, {grid['transformers'][t]['category']}): "
+                   f"{loading.get(t, 0):.1f}%" + (f" ({(risk_by_tx or {}).get(t, '').replace('_', ' ')})" if risk_by_tx else "")
+                   for t in names], hoverinfo="text"))
+    ys = [y for _, y in B.values()] + [y for _, y in TP.values()]
+    fig.update_xaxes(visible=False, range=[-0.9, right + 1.2])
+    fig.update_yaxes(visible=False, range=[min(ys) - 0.6, max(ys) + 0.6])
+    fig.update_layout(height=max(470, int(70 * (max(ys) - min(ys)) + 120)), margin=dict(l=0, r=0, t=10, b=0),
+                      showlegend=False)
     return fig
 
 

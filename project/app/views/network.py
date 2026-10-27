@@ -84,17 +84,18 @@ def body():
     thr = C.settings(state)["threshold"]
     view = st.radio("Show", ["Hour just measured", "Next hour (forecast)"], horizontal=True, key="net_view")
     if view == "Hour just measured":
-        loading, moves, sw = last["measured_pct"], last["config_before"], last.get("switches")
+        loading, moves, sw = last["measured_pct"], last["config_before"], C.switch_states(last.get("switches"))
         risk = last.get("risk")
         cap = f"Measured loading in hour {last['sim_time']:%d %b %H:%M}, configuration then in force."
     else:
         loading = last.get("next_forecast_pct") or last["measured_pct"]
-        moves, sw, risk = last["config_after"], last.get("switches_after"), None
+        moves, sw, risk = last["config_after"], C.switch_states(last.get("switches_after")), None
         cap = "Forecast loading for the next hour, in the configuration now in force (coloured by loading)."
     left, right = st.columns([1.15, 1])
     with left:
-        ev = st.plotly_chart(plots.topology_figure(loading, moves, thr, risk, sw), key="net_fig",
-                             on_select="rerun", selection_mode="points")
+        fig = (plots.network_figure(C.GRID, loading, moves, thr, risk, sw) if "layout" in C.GRID   # a synthetic city
+               else plots.topology_figure(loading, moves, thr, risk, sw))
+        ev = st.plotly_chart(fig, key="net_fig", on_select="rerun", selection_mode="points")
         st.caption(cap + " Click a transformer to inspect it.")
         pts = (ev or {}).get("selection", {}).get("points", []) if isinstance(ev, dict) else \
             getattr(getattr(ev, "selection", None), "points", []) or []
@@ -108,7 +109,8 @@ def body():
             transformer_panel(pick, last, thr)
         else:
             feeder_panel(pick, last)
-    sw_now = pd.DataFrame([{"switch": k, "state": v} for k, v in (last.get("switches_after") or {}).items()])
+    sw_now = pd.DataFrame([{"switch": k, "state": v, "normal": C.GRID["switches"][k]["normal"]}
+                           for k, v in C.switch_states(last.get("switches_after")).items()])
     with st.expander("Switch states now in force"):
         st.dataframe(sw_now, hide_index=True)
 

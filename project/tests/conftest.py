@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 PROJECT = Path(__file__).resolve().parents[1]
-for p in (PROJECT, PROJECT / "grid", PROJECT / "ml", PROJECT / "app", PROJECT / "sim"):
+for p in (PROJECT, PROJECT / "grid", PROJECT / "ml", PROJECT / "app", PROJECT / "sim", PROJECT / "city"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 

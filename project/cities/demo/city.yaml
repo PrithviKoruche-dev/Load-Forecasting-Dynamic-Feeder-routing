@@ -1,0 +1,107 @@
+# Synthetic city "demo" (Phase 7; gap items A1, A2, A5, C1, C4).
+#
+# Edit this file, then run:   python city/generate.py demo
+# The generator writes, next to this file: network.dss (the OpenDSS model), consumers.csv (every consumer with
+# its meter ID) and config/ (grid.yaml and the other settings the engine, service and dashboard read).
+# Run the city with:          python sim/service.py --city demo      /  streamlit run app/app.py -- --city demo
+#
+# Everything random comes from `seed`, so the same file always gives the same city.
+
+name: Demo city
+seed: 7
+year: 2023                        # the simulated calendar year (holidays and events below are dates in it)
+
+network:
+  substations: 3                  # each an 11 kV source (its 33/11 kV transformer is not modelled)
+  feeders_per_substation: [3, 3, 2]
+  transformers_per_feeder: {min: 4, max: 6}
+  ratings_kva: {250: 0.2, 400: 0.35, 500: 0.3, 630: 0.15}    # rating: probability
+  segment_km: {min: 0.3, max: 0.8}                            # cable between consecutive transformers
+  cable: {r1: 0.16, x1: 0.11, r0: 0.5, x0: 0.4, normamps: 380, emergamps: 450}   # 240 mm² Al XLPE (urban)
+  source_mvasc: 300
+  movable_fraction: 0.20          # block b of each transformer that can move to a neighbour (as in the classic network)
+  peak_utilisation: {min: 0.50, max: 0.80}   # each transformer's normal-year peak (before noise) / rating
+
+# Which consumers each transformer serves: a transformer is "residential", "commercial", "industrial" or
+# "mixed" (its dominant type, drawn with these probabilities), and serves the consumer shares listed for it.
+consumers:
+  transformer_types: {residential: 0.45, commercial: 0.2, industrial: 0.1, mixed: 0.25}
+  composition:
+    residential: {residential: 0.92, commercial: 0.08}
+    commercial: {commercial: 0.7, residential: 0.3}
+    industrial: {industrial: 0.7, commercial: 0.3}
+    mixed: {mixed: 0.5, residential: 0.3, commercial: 0.2}
+  size_spread: 0.35               # each consumer's size varies around its type's typical size (lognormal sigma)
+  power_factor: {residential: 0.95, commercial: 0.92, industrial: 0.88, mixed: 0.93}
+
+# Demand per consumer type, at 15-minute resolution.
+demand:
+  residential:
+    profile: emarc                # city/profiles/residential_emarc.csv: fitted to the real eMARC households
+    scale: 4.0                    # an urban household uses this many times the eMARC sample's average
+  commercial:                     # shops and offices: kW at each hour for a typical consumer
+    weekday: [1.2, 1.1, 1.1, 1.1, 1.1, 1.2, 1.5, 2.2, 3.6, 5.4, 6.6, 7.0, 7.0, 6.8, 6.8, 6.9, 7.0, 7.0, 6.8, 6.2, 5.2, 3.6, 2.2, 1.5]
+    saturday_factor: 0.9
+    sunday_factor: 0.55           # also used on holidays
+    cooling_kw_per_c: 0.25        # extra kW per degree above 24 °C, while open (8:00 to 21:00)
+  industrial:                     # two shifts, 6:00 to 22:00
+    weekday: [16, 16, 16, 16, 16, 20, 42, 48, 50, 50, 50, 50, 47, 50, 50, 50, 50, 50, 48, 48, 46, 42, 22, 16]
+    saturday_factor: 0.85
+    sunday_factor: 0.3
+    cooling_kw_per_c: 0.4
+  mixed:                          # flats above shops: this share of a household plus the rest of a shop
+    residential_share: 0.6
+  noise: 0.05                     # relative variation of a transformer's load from one 15 minutes to the next
+  noise_persistence: 0.85
+
+# Weather: daily temperature from the monthly means (smoothly interpolated), a daily cycle peaking at 15:00
+# and day-to-day variation.
+weather:
+  monthly_mean_c: [21.5, 23.5, 26.5, 29.5, 30.0, 27.5, 25.0, 24.5, 25.0, 25.5, 23.0, 21.0]
+  daily_amplitude_c: {winter: 7.0, summer: 8.0, monsoon: 3.5, transition: 6.0}
+  day_to_day_c: 1.5
+  day_to_day_persistence: 0.8
+
+# Public holidays of `year`: commercial and industrial demand as on Sundays, households as at weekends.
+holidays: ["2023-01-26", "2023-03-08", "2023-04-07", "2023-08-15", "2023-10-02", "2023-10-24", "2023-11-12",
+           "2023-12-25"]
+
+# Events. "always: true" events are part of the normal year; the others are switched on by a scenario
+# (config/scenarios.yaml in the generated folder lists the scenarios and their events).
+events:
+  diwali_lights:
+    always: true
+    kind: demand_change           # households and mixed buildings use more in the evening
+    from: "2023-11-10"
+    to: "2023-11-14"
+    hours: [18, 24]
+    factor: 1.25
+    consumers: [residential, mixed]
+  may_heatwave:
+    kind: heatwave
+    from: "2023-05-08"
+    to: "2023-05-16"
+    extra_c: 6.0
+  ev_adoption:
+    kind: ev_charging             # a share of households charge an electric car in the evening
+    share: 0.15
+    charger_kw: 3.3
+    energy_kwh: 7.0               # per car per day
+    arrival_h: {mean: 19.0, sd: 1.2}
+    consumers: [residential, mixed]
+
+scenarios:
+  - name: C1 Normal year
+    events: []
+  - name: C2 May heatwave
+    events: [may_heatwave]
+  - name: C3 EV adoption (15% of households)
+    events: [ev_adoption]
+  - name: C4 Heatwave and EV adoption
+    events: [may_heatwave, ev_adoption]
+
+simulation:
+  start: "2023-01-08 00:00"       # after a week of warm-up: the 24 h-ahead forecast and its band need history
+  end: "2023-12-31 23:45"
+  step_minutes: 15
+  scenario: C1 Normal year

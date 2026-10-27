@@ -1,0 +1,5 @@
+scenario,mode,steps,forecast_tx_hours_over,reroutes,restores,mitigations,no_safe_option,switch_operations,hours_rerouted,measured_tx_hours_over_no_control,measured_tx_hours_over_with_control,reduction_%,measured_hours_over_100_no_control,measured_hours_over_100_with_control,forecast_nRMSE_%,band_coverage_%,mean_step_ms,wall_s,from,to,step_minutes
+C1 Normal year,auto,2976,32,12,12,2,16,92,19,38,38,0.0,0,0,21.3,80.3,76.9,229.2,2023-05-01 00:00,2023-05-31 23:45,15
+C2 May heatwave,auto,2976,253,23,22,22,109,236,101,317,316,0.3,1,1,22.3,79.7,84.3,251.0,2023-05-01 00:00,2023-05-31 23:45,15
+C3 EV adoption (15% of households),auto,2976,180,115,34,20,44,536,233,485,324,33.2,1,1,20.8,80.3,88.1,262.5,2023-05-01 00:00,2023-05-31 23:45,15
+C4 Heatwave and EV adoption,auto,2976,618,112,36,59,146,732,320,1031,840,18.5,17,11,21.9,79.7,98.9,294.6,2023-05-01 00:00,2023-05-31 23:45,15

@@ -41,9 +41,19 @@ def time_label(t):
     return f"{pd.Timestamp(t):%Y-%m-%d %H:%M}"
 
 
+def city_name():
+    """The synthetic city this configuration belongs to (config/simulation.yaml `city`), or None (the eMARC data)."""
+    return config.simulation().get("city")
+
+
 def prepare_database(store):
     """Import the committed forecasts, measured loads, intervals and meter registry, and register the model
-    (all idempotent: the same as the dashboard does at start-up)."""
+    (all idempotent: the same as the dashboard does at start-up). For a synthetic city: its consumers and
+    meters; its measurements and forecasts are written as the simulation runs."""
+    city = city_name()
+    if city:
+        store.import_consumers(ROOT / "cities" / city / "consumers.csv")
+        return
     store.import_forecast_csv(ROOT / "data" / "forecast.csv")
     store.import_intervals_csv(ROOT / "data" / "forecast_intervals.csv")
     store.import_meter_registry(ROOT / "data" / "processed" / "meter_registry.csv")
@@ -68,26 +78,33 @@ class Orchestrator:
         import engine as engine_mod                       # OpenDSS loads here, on the caller's thread
         from decisions import Controller
         from risk import RiskModel
-        from sources import ClassicSource, forecast_source as make_forecasts
+        from sources import CitySource, ClassicSource, forecast_source as make_forecasts
         sim = config.simulation()["orchestrator"]
         self.store = store
         self.engine = engine or engine_mod._default
+        first = benchmark_scenario(scenario or sim["scenario"])
         frame = None
-        if demand is None or forecasts is None:
+        city = city_name()
+        if engine is None and city and set(engine_mod._default.tx) != set(config.grid()["transformers"]):
+            self.engine = engine_mod.GridEngine()              # the module's default engine is another network
+        if (demand is None or forecasts is None) and not city:
             frame = store.forecast_frame()
-        self.demand = demand or ClassicSource(store, frame)
-        self.forecasts = forecasts or make_forecasts(forecast_source or sim["forecast_source"], store, frame)
+        self.demand = demand or (CitySource(store, city, first) if city else ClassicSource(store, frame))
+        self.forecasts = forecasts or make_forecasts(forecast_source or sim["forecast_source"], store, frame,
+                                                     demand=self.demand)
         self.service = service or sim["controller"]
         self.ctl = controller or Controller(self.engine, store=store, name=self.service)
         self.risk = RiskModel()
         self.threshold = float(self.engine.threshold if threshold is None else threshold)
         self.use_mv = use_mv
-        self.scenario = benchmark_scenario(scenario or sim["scenario"])
+        self.scenario = first
         self.step_delta = self.demand.resolution
 
     # ------------------------------------------------------------------ settings
     def set_scenario(self, name):
         self.scenario = benchmark_scenario(name)
+        if hasattr(self.demand, "set_events"):                  # synthetic city: the events change the demand
+            self.demand.set_events(self.scenario.events)
         return self.scenario
 
     def settings(self):
@@ -137,7 +154,10 @@ class Orchestrator:
         config_before = list(ctl.active)
 
         # 1 measure
-        measured = self._apply_scenario(self.demand.measured(t), t)
+        raw = self.demand.measured(t)
+        if hasattr(self.demand, "record"):                      # synthetic city: the readings arrive now
+            self.demand.record(t, raw)
+        measured = self._apply_scenario(raw, t)
         lap("measure")
 
         # 2 power flow: hour t as it ran, and without control
@@ -221,8 +241,8 @@ class Orchestrator:
                "next_forecast_pct": by_tx(fc_next_after), "next_upper_pct": by_tx(up_next_after),
                "tx_detail": None if meas is None else meas.get("transformers"),
                "feeders": None if meas is None else meas.get("feeders"),
-               "switches": self.engine.switch_state(config_before),
-               "switches_after": self.engine.switch_state(config_after)}
+               "switches": self._off_normal(config_before),                # only switches away from normal
+               "switches_after": self._off_normal(config_after)}
         lap("record")                                          # time to build the row; the write is timed below
         t_write = time.perf_counter()
         row["timings_ms"] = timings
@@ -231,6 +251,10 @@ class Orchestrator:
         timings["record"] = round(timings["record"] + 1000 * (time.perf_counter() - t_write), 3)
         row["duration_ms"] = round(1000 * (time.perf_counter() - wall0), 3)
         return {**row, "rec": rec}
+
+    def _off_normal(self, keys):
+        """Switches not in their normal position under these actions (the rest are as in grid.yaml)."""
+        return {sw: st for sw, st in self.engine.switch_state(keys).items() if st != self.engine.normal_state[sw]}
 
     @property
     def awaiting_operator(self):

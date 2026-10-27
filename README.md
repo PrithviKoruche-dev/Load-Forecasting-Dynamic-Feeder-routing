@@ -22,6 +22,7 @@
 - [Stress Scenarios & Experimental Results](#-stress-scenarios--experimental-results)
 - [Operator Dashboard (Streamlit & Plotly)](#-operator-dashboard-streamlit--plotly)
 - [Closed-Loop Simulation Service](#-closed-loop-simulation-service)
+- [Synthetic City (Phase 7)](#-synthetic-city-phase-7)
 - [Configuration, Asset IDs & Logging](#-configuration-asset-ids--logging)
 - [Repository Structure](#-repository-structure)
 - [Getting Started & Installation](#-getting-started--installation)
@@ -88,6 +89,11 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - An orchestrator runs every module once per simulated hour (measure, power flow, forecast, detect, validate, apply or propose, record) as a background service, independent of any dashboard.
   - Simulation clock with pause, resume, single step, jump, restart and variable speed, including an accelerated mode of one simulated year per 24 hours; the achieved speed is measured.
   - All state in the database: the live dashboard and a command-line tool only send commands; a killed service restarts where it stopped and gives the same result.
+
+- **🏙 Synthetic City:**
+  - A generated city of 3 substations, 8 feeders and 44 transformers serving 5,083 households, shops, offices, mixed-use buildings and factories, each with a meter, built from one YAML file and a seed.
+  - 15-minute demand for a whole year from consumer profiles (households calibrated on the eMARC data), weekdays, holidays, seasons and weather; heatwaves, EV charging and festivals are events in the city's demand.
+  - Runs through the same engine, service and dashboard (`--city demo`), within 5% of the accelerated mode's time budget.
 
 - **🔬 Comprehensive Scenario Verification:**
   - Validated across **1,073 continuous test hours** across 5 distinct operational scenarios: Normal Day, Feeder A Heatwave, EV Evening Surge, Severe Multi-Feeder Stress, and Extreme Single-Transformer Overload.
@@ -426,10 +432,10 @@ Each benchmark scenario run hour by hour in automatic mode over the 1,073 test h
 | S1 Normal day | 0 / 0 / 0 | 0 | 0 → 0 | – | 0 → 0 |
 | S2 Heatwave | 5 / 5 / 0 | 20 | 41 → 37 | 9.8% | 10 → 8 |
 | S3 EV surge | 18 / 18 / 0 | 72 | 59 → 48 | 18.6% | 5 → 3 |
-| S4 Severe stress | 115 / 90 / 87 | 500 | 1,177 → 1,150 | 2.3% | 364 → 307 |
+| S4 Severe stress | 115 / 90 / 87 | 1,058 | 1,177 → 1,150 | 2.3% | 364 → 307 |
 | S5 Edge case | 51 / 62 / 12 | 250 | 803 → 554 | 31.0% | 566 → 349 |
 
-In monitor mode the loop sees exactly the forecast overloads of the published benchmark (22 transformer-hours in S3), which a test checks. The reductions are modest for S2 and S3 because the control can only act on overloads the point forecast predicts, and it predicts few of the real ones (recall 12–19%, see "Does the Forecast Catch Overloads?"). This is the measured cost of the design decision to switch on the point forecast only, and the motivation for the short-horizon forecasting of Phase 9.
+In monitor mode the loop sees exactly the forecast overloads of the published benchmark (22 transformer-hours in S3), which a test checks. (The first version of this table gave S4 500 switch operations: the count stopped at 500 rows. Corrected in Phase 7; nothing else changed.) The reductions are modest for S2 and S3 because the control can only act on overloads the point forecast predicts, and it predicts few of the real ones (recall 12–19%, see "Does the Forecast Catch Overloads?"). This is the measured cost of the design decision to switch on the point forecast only, and the motivation for the short-horizon forecasting of Phase 9.
 
 ### Performance (`sim/benchmark.py`, `docs/performance.csv`)
 Measured on the busiest scenario (S4, automatic mode, 1,073 steps; a 2-CPU Linux container):
@@ -447,6 +453,75 @@ Run `python sim/benchmark.py` to measure your own computer.
 
 ---
 
+## 🏙 Synthetic City (Phase 7)
+
+The six-transformer network on real eMARC data stays the validated baseline ("classic mode", every published number above). Phase 7 adds a **generated city** that runs through the same engine, service and dashboard, as a different configuration folder.
+
+### What is Generated (`city/generate.py`, `cities/demo/`)
+`cities/demo/city.yaml` describes the city; `python city/generate.py demo` builds it (everything random comes from its `seed`, and a test checks that generating again gives the committed files byte for byte):
+
+| | Demo city |
+|:---|:---|
+| Substations | 3, each an 11 kV source (`SUB-001` … `SUB-003`; the 33/11 kV substation transformers are not modelled) |
+| Feeders | 8 (3 + 3 + 2), cable segments of 0.3–0.8 km (240 mm² Al XLPE), a sectionaliser half-way along each |
+| Transformers | 44, rated 250–630 kVA (20,050 kVA in all), each with a fixed block a and a movable block b (as in the classic network) |
+| Switches | 100: 44 LV home, 44 LV alt, 8 sectionalisers, 4 normally open ties between feeder ends (2 of them across substations); 8 MV transfer options |
+| Consumers | 5,083, each with a meter (`MTR-00001` …) in `consumers.csv` and the database: 4,218 households, 654 shops and offices, 197 mixed-use buildings, 14 factories |
+
+Each transformer gets a dominant consumer type and a mix of consumers, sized so that its normal-year peak (before noise) is 50–80% of its rating. The generator writes `network.dss` (OpenDSS), `consumers.csv` and `config/` (`grid.yaml` with every asset, ID, switch, move, MV transfer and the diagram layout, plus the operations, scenarios, forecasting, storage and simulation settings of the city).
+
+To make the engine work on any such network, it now reads several substations from `grid.yaml` (an island fed by two substations through a closed tie is refused, like a loop), and `rerouting.candidate_scope: relevant` (used by the city) tries only moves that take load off an overloaded transformer or make room for it. On the classic benchmark this gives **the same decision in all 5,365 runs** with 65% fewer candidates evaluated; a test checks the same on busy city steps.
+
+### Demand Model (`city/demand.py`)
+Every transformer's load at **15-minute** resolution for a whole year (35,040 steps), from its consumers:
+
+- **Households** follow the real eMARC households: a profile per season, weekday/weekend and hour of day plus a cooling term per °C above 24 °C, fitted by least squares on all 42,768 hours of the eMARC data (`city/calibrate.py` → `city/profiles/residential_emarc.csv`; strongest cooling at night, when air conditioners run). An urban household is taken to use 4× the eMARC sample's average (`demand.residential.scale`, an assumption: the eMARC homes are small consumers). The eMARC data covers June to March, so summer is fitted from March only, and the hotter April and May act through the cooling term.
+- **Shops and offices** and **factories** follow hourly profiles from `city.yaml` (opening hours, two shifts), lower on Saturdays and on Sundays and **public holidays**, with cooling while open; **mixed-use** buildings are part household, part shop.
+- **Seasons** come from the calendar in `config/simulation.yaml` (winter Dec–Feb, summer Mar–May, monsoon Jun–Sep, transition Oct–Nov); **weather** from monthly mean temperatures, a daily cycle by season and seeded day-to-day variation.
+- **Events** change the demand itself rather than scaling a forecast: `diwali_lights` (always on: households use 25% more in the evening for five days), `may_heatwave` (+6 °C for nine days, acting through every cooling term) and `ev_adoption` (15% of households charge a 3.3 kW car in the evening, about 7 kWh a day). Scenarios switch events on: **C1** normal year, **C2** May heatwave, **C3** EV adoption, **C4** both. The weather and the noise do not depend on the events, so scenarios differ only where their events act (tested).
+
+### Forecast in the City
+The XGBoost model was trained on the six eMARC clusters, so the city starts with a transparent baseline: the **24 h-ahead persistence forecast** (the load at the same time the day before), with a P10–P90 band from the same rolling conformal calibration as Phase 4, using only loads known at issue time (tested by changing every later load). The service writes each step's meter readings and issues the forecast for 24 h later, so the Forecasting page scores them as time passes. Phase 9 replaces it with a short-horizon model trained on the simulator's own history.
+
+### City Results (`docs/closed_loop_city_demo.csv`)
+May (the peak month, 2,976 steps of 15 minutes), automatic mode, closed loop as in Phase 5:
+
+| Scenario | Reroutes / restores / mitigations | Switch operations | Measured transformer-steps > 85%: no control → with control | Reduction | Steps with a transformer > 100% | Forecast nRMSE | P10–P90 coverage |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| C1 Normal year | 12 / 12 / 2 | 92 | 38 → 38 | 0.0% | 0 → 0 | 21.3% | 80.3% |
+| C2 May heatwave | 23 / 22 / 22 | 236 | 317 → 316 | 0.3% | 1 → 1 | 22.3% | 79.7% |
+| C3 EV adoption (15% of households) | 115 / 34 / 20 | 536 | 485 → 324 | 33.2% | 1 → 1 | 20.8% | 80.3% |
+| C4 Heatwave and EV adoption | 112 / 36 / 59 | 732 | 1,031 → 840 | 18.5% | 17 → 11 | 21.9% | 79.7% |
+
+The P10–P90 band is well calibrated (about 80% coverage in every scenario), and the control removes a third of the overloads where they come back every day (EV charging), but **almost none in the heatwave**: persistence cannot foresee the first hot day (on 8 May none of the 122 overloaded steps was forecast) and then expects yesterday's overloads at the wrong times. The point forecast decides the switching (the design decision recorded under Forecasting), so a forecast that follows the weather is what the city needs most: Phase 9.
+
+### Running the City
+```bash
+cd project
+python city/generate.py demo                                  # only after editing cities/demo/city.yaml
+python sim/service.py --city demo                             # or start it from the dashboard
+streamlit run app/app.py -- --city demo                       # the dashboard for the city (note the --)
+python sim/control.py status --city demo                      # every control.py command takes --city
+python sim/closed_loop.py --city demo                         # docs/closed_loop_city_demo.csv (about 20 min)
+python sim/benchmark.py --city demo                           # docs/performance_city_demo.csv
+```
+The city has its own database (`data/city_demo.db`), so its runs never mix with the classic network's. The dashboard pages work unchanged (the Network page draws the city's 44 transformers, 8 feeders and ties from the layout in `grid.yaml`); the what-if replay sandbox, which replays the eMARC forecasts, is not shown for a city.
+
+### City Performance (`docs/performance_city_demo.csv`)
+One busy week (heatwave and EV adoption, 672 steps of 15 minutes, automatic mode) on the same 2-CPU container:
+
+| Measure | Value |
+|:---|:---|
+| Step time, mean / 95th percentile | 104 ms / 271 ms (power flow 39 ms, forecast and scoring 27 ms, decision 36 ms) |
+| Throughput | 9.6 steps/s: a simulated year of 15-minute steps in about 61 minutes |
+| Accelerated mode (1 year per 24 h) | uses 4.2% of the 2.47 s budget per 15-minute step |
+| Memory | about 346 MB; flat after warm-up (1,500 steps checked) |
+| Database | about 56 KB per step before retention; the city keeps 60 days of measurements, alerts and forecasts (`storage.yaml retention`, applied by the service once per simulated day), and only switch positions away from normal are stored with each step |
+
+Most of the power-flow time is OpenDSS recompiling the circuit before every evaluation (6.5 of 11.4 ms on the city); keeping the circuit loaded between evaluations is the obvious next speed-up if a faster-than-hourly city is needed.
+
+---
+
 ## 🧩 Configuration, Asset IDs & Logging
 
 ### Configuration (`project/config/`)
@@ -459,7 +534,9 @@ Every setting that used to be a constant in the code now lives in one of four YA
 | `scenarios.yaml` | Benchmark S1–S5, the quick flat-load scenarios and the dashboard presets — defined once |
 | `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target, interval method and window, v2 experiment settings |
 | `storage.yaml` | Database URL (SQLite file by default), batch size, retention, labels for the imported forecasts |
-| `simulation.yaml` | Simulation clock (range, step, speed, accelerated factor, catch-up), orchestrator (scenario, first mode, forecast source, pause on recommendation) and service settings (polling, heartbeat) |
+| `simulation.yaml` | Simulation clock (range, step, speed, accelerated factor, catch-up), orchestrator (scenario, first mode, forecast source, pause on recommendation), service settings (polling, heartbeat) and the season calendar |
+
+A synthetic city has its own set of these files in `cities/<name>/config/`, written by `city/generate.py`; `--city <name>` (service, control, dashboard, closed-loop and benchmark scripts) or the environment variable `LFDR_CONFIG_DIR` selects it. `grid.yaml` may then list several `substations`, and `operations.yaml` sets `rerouting.candidate_scope: relevant`.
 
 `network.dss` still holds the electrical model that OpenDSS solves; tests check that `grid.yaml` agrees with it (transformers, ratings, buses, loads, switch states and the buses each move connects). Set `LFDR_CONFIG_DIR` to point the whole project at another config folder.
 
@@ -483,7 +560,7 @@ On first start the dashboard creates `project/data/twin.db` (SQLite), imports `d
 
 | Table | Holds |
 |:---|:---|
-| `assets`, `meters` | Network assets and the meter registry, with their IDs |
+| `assets`, `meters` | Network assets and the meter registry, with their IDs (for a city: every consumer's meter, with its consumer ID and type) |
 | `forecasts`, `measurements` | Forecasts per model version and horizon (pending until scored, then with their error); measured loads per source, with a quality flag |
 | `forecast_quantiles` | Interval bounds (P10, P90) per forecast hour, model version and method |
 | `recommendations`, `candidates` | Every recommendation (plan, before/after, checks, losses, confidence, binding constraint) and every option evaluated for it |
@@ -520,6 +597,16 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── forecasting.yaml       # Data window, cleaning rules, clusters, split, model settings
     │   ├── storage.yaml           # Database URL, batch size, retention
     │   └── simulation.yaml        # Simulation clock, orchestrator and service settings
+    ├── city/                      # Synthetic city (Phase 7)
+    │   ├── generate.py            # city.yaml -> network.dss, consumers.csv, config/ (seeded)
+    │   ├── demand.py              # 15-minute demand per transformer: consumer types, calendar, seasons, weather, events
+    │   ├── calibrate.py           # Fit the household profile on the eMARC data
+    │   └── profiles/residential_emarc.csv  # The fitted household profile (committed)
+    ├── cities/demo/               # The demo city
+    │   ├── city.yaml              # Its specification: edit this, then generate
+    │   ├── network.dss            # Generated OpenDSS model (3 substations, 8 feeders, 44 transformers)
+    │   ├── consumers.csv          # Generated consumers and meters
+    │   └── config/                # Generated settings for the engine, service and dashboard
     ├── storage/                   # Database layer
     │   ├── schema.py              # Tables (SQLAlchemy Core; SQLite or PostgreSQL)
     │   └── store.py               # Store: every read and write of the database
@@ -593,6 +680,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── results_mitigation.csv # Hours with no full fix where a safe mitigation exists
     │   ├── closed_loop.csv        # S1-S5 run hour by hour in automatic mode: measured overloads without/with control
     │   ├── performance.csv        # Step time per stage, throughput, memory, database growth, clock accuracy
+    │   ├── closed_loop_city_demo.csv, performance_city_demo.csv  # The same for the demo city (May; one busy week)
     │   ├── archive/               # Superseded result tables, with an explanation
     │   └── fig_actual_vs_pred.png # Actual vs predicted multi-transformer plot
     ├── tests/                     # Automated pytest suite (see "Running the Tests")
@@ -609,6 +697,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_storage.py        # Schema, imports, filters, batching, retention, restart restores everything
     │   ├── test_simulation.py     # Clock, orchestrator, service commands, kill-and-restart recovery, benchmark
     │   ├── test_pages.py          # Every dashboard page headless; service settings; schema migration
+    │   ├── test_city.py           # Generator, multi-substation engine, demand model, calibration, persistence forecast, city in the loop
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
@@ -731,8 +820,8 @@ python sim/benchmark.py                    # docs/performance.csv (about 1 min, 
 ### 6. Running the Tests
 ```bash
 cd project
-python -m pytest                  # full suite, about 5 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
-python -m pytest -m "not slow"    # everything except those, about 1 min
+python -m pytest                  # full suite, about 6 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
+python -m pytest -m "not slow"    # everything except those, about 1.5 min
 ```
 `python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the pages headless: the sandbox through the S3 and S4 worst hours, and every live page against a database filled by a real service run (approving a proposal, changing the threshold, filtering the log).
 

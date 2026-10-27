@@ -46,6 +46,7 @@ class Rule:
 class Scenario:
     name: str
     rules: tuple = field(default_factory=tuple)
+    events: tuple = ()                          # synthetic city: events of cities/<name>/city.yaml (Phase 7)
 
     def adjust(self, tx, ts, kw):
         """Load of transformer `tx` at time `ts` after every rule that applies."""
@@ -63,7 +64,7 @@ class Scenario:
 
 
 def _scenario(d):
-    return Scenario(d["name"], tuple(Rule.from_dict(r) for r in d.get("rules", [])))
+    return Scenario(d["name"], tuple(Rule.from_dict(r) for r in d.get("rules", [])), tuple(d.get("events", [])))
 
 
 def benchmark():

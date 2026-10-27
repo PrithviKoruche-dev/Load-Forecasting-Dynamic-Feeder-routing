@@ -93,8 +93,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Control the simulation service.")
     ap.add_argument("command")
     ap.add_argument("value", nargs="?")
-    ap.add_argument("--service", default=config.simulation()["orchestrator"]["controller"])
+    ap.add_argument("--city", help="the synthetic city whose service to control")
+    ap.add_argument("--service")
     a = ap.parse_args(argv)
+    config.use_city(a.city)
+    a.service = a.service or config.simulation()["orchestrator"]["controller"]
     store = Store()
     if a.command == "status":
         print(describe(store.load_sim_state(a.service)))

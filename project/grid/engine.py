@@ -71,6 +71,9 @@ class GridEngine:
         self.min_improvement = rr["min_improvement_pct"]
         self.tie_tolerance = rr["tie_tolerance_pct"]
         self.use_mv = rr["use_mv_transfers"]
+        self.candidate_scope = rr.get("candidate_scope", "all")
+        self.substations = config.substations(g)
+        self.source_buses = {s["bus"].lower() for s in self.substations.values()}   # 11 kV sources
         self.switch_ids = {s: sw["id"] for s, sw in g["switches"].items()}
         self.normal_state = {s: sw["normal"] for s, sw in g["switches"].items()}
 
@@ -168,14 +171,14 @@ class GridEngine:
 
     def metrics(self):
         tx = self.transformer_loading()
-        mv = {b: x for b, x in self.bus_voltages_pu().items() if b != "sub"}
+        mv = {b: x for b, x in self.bus_voltages_pu().items() if b not in self.source_buses}
         return {"max_loading": max(tx.values()), "min_voltage_pu": min(mv.values()),
                 "loading_by_tx": tx, "max_line_loading": max(self.line_loading().values())}
 
     def measure(self):
         """Everything the search needs about the solved state, including where each extreme occurs."""
         tx = self.transformer_loading()
-        nodes = {b: v for b, v in self.node_voltages_pu().items() if b != "sub"}
+        nodes = {b: v for b, v in self.node_voltages_pu().items() if b not in self.source_buses}
         vmin_bus = min(nodes, key=lambda b: min(nodes[b]))
         vmax_bus = max(nodes, key=lambda b: max(nodes[b]))
         lines = self.line_loading()
@@ -204,7 +207,7 @@ class GridEngine:
             kw, kvar = sum(p[0::2]), sum(p[1::2])
             head = _bus(dss.Lines.Bus2())
             g = graph.copy()
-            g.remove_node("sub")
+            g.remove_nodes_from(self.source_buses)
             buses = nx.node_connected_component(g, head) if head in g else set()
             served = [t for t, x in self.grid["transformers"].items() if x["mv_bus"].lower() in buses]
             feeders[name] = {"id": fd["id"], "kw": round(kw, 1), "kvar": round(kvar, 1),
@@ -324,7 +327,13 @@ class GridEngine:
             loop = nx.cycle_basis(simple)
             where = ", ".join(sorted(b.upper() for b in loop[0])) if loop else "parallel elements"
             return False, f"would close a loop ({where})"
-        supplied = nx.node_connected_component(simple, "sub")
+        supplied = set()
+        for src in sorted(self.source_buses):
+            comp = nx.node_connected_component(simple, src) if src in simple else {src}
+            parallel = sorted((comp & self.source_buses) - {src})
+            if parallel:
+                return False, f"would connect substations {src.upper()} and {', '.join(p.upper() for p in parallel)} in parallel"
+            supplied |= comp
         cut = sorted(ld for ld, b in self._topology["loads"].items() if b not in supplied)
         if cut:
             return False, f"would leave {', '.join(cut)} unsupplied"
@@ -461,6 +470,8 @@ class GridEngine:
                 break
             groups = {self.actions[k].group for k in active}
             free = [a for a in allowed if a.key not in active and a.group not in groups]
+            if self.candidate_scope == "relevant" and not cur_other:
+                free = self._relevant(free, current, threshold)
             best, best_m, round_recs = None, None, []
 
             def consider(cands, kind):
@@ -530,6 +541,16 @@ class GridEngine:
         return result("no_safe_option", best_partial=labels, best_partial_target=partial,
                       before=packed_before, after=self._pack(current),
                       overloaded=overloaded, violations_before=viol_before, binding=binding)
+
+    def _relevant(self, free, current, threshold):
+        """candidate_scope "relevant" (large networks): only actions that can lower an overloaded transformer's
+        loading. An LV move changes only its own two transformers, so the useful ones move load OFF an
+        overloaded transformer, or off a transformer that one of those could move onto (making room).
+        MV transfers do not change transformer loading; they stay for feeder current and voltage problems,
+        for which every action is considered."""
+        hot = {t for t, x in current["loading_by_tx"].items() if x > threshold}
+        receivers = {a.target for a in free if a.kind == "lv" and a.source in hot}
+        return [a for a in free if a.kind == "lv" and (a.source in hot or a.source in receivers)]
 
     @staticmethod
     def _label_round(recs, chosen, current, threshold, fixing_violation=False):

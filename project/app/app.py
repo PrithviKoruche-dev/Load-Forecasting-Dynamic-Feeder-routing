@@ -20,7 +20,10 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from core import config  # noqa: E402
 
+CITY = config.city_arg()                 # streamlit run app/app.py -- --city demo   (a synthetic city)
 st.set_page_config(page_title="Feeder digital twin", layout="wide")
 
 VIEWS = Path(__file__).resolve().parent / "views"
@@ -38,4 +41,6 @@ pages = {
         st.Page(VIEWS / "replay.py", title="What-if replay", icon=":material/science:"),
     ],
 }
+if config.simulation().get("city"):     # the replay sandbox works on the eMARC forecasts only
+    pages.pop("Sandbox")
 st.navigation(pages).run()

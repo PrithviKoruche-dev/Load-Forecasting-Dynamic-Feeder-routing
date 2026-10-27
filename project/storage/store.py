@@ -136,6 +136,21 @@ class Store:
             c.execute(self._insert(S.meters, ignore=True), rows)
             return c.execute(select(func.count()).select_from(S.meters)).scalar_one() - before
 
+    def import_consumers(self, path):
+        """Load a synthetic city's consumers.csv (one meter per consumer). Idempotent. Returns rows inserted."""
+        path = Path(path)
+        if not path.exists():
+            return 0
+        c_ = pd.read_csv(path, dtype=str)
+        rows = [{"meter_id": r["meter_id"], "transformer_asset_id": r["transformer_asset_id"], "deployment_id": None,
+                 "household_id": None, "region": None, "consumer_id": r["consumer_id"], "consumer_type": r["type"]}
+                for _, r in c_.iterrows()]
+        with self.engine.begin() as c:
+            before = c.execute(select(func.count()).select_from(S.meters)).scalar_one()
+            for chunk in _chunks(rows, self.batch_size):
+                c.execute(self._insert(S.meters, ignore=True), chunk)
+            return c.execute(select(func.count()).select_from(S.meters)).scalar_one() - before
+
     def meters(self):
         with self.engine.connect() as c:
             return pd.DataFrame(c.execute(select(S.meters)).mappings().all())
@@ -203,6 +218,16 @@ class Store:
             return 0
         with self.engine.begin() as c:
             return c.execute(self._insert(S.forecasts, ignore=True), data).rowcount
+
+    def write_quantiles(self, rows, model_version, method, horizon_h=24):
+        """Insert forecast bounds issued at run time: rows of (target_time, asset_id, quantile, kw). Idempotent."""
+        data = [{"model_version": model_version, "target_time": pd.Timestamp(t).to_pydatetime(), "asset_id": a,
+                 "horizon_h": float(horizon_h), "quantile": float(q), "kw": float(k), "method": method}
+                for t, a, q, k in rows]
+        if not data:
+            return 0
+        with self.engine.begin() as c:
+            return c.execute(self._insert(S.forecast_quantiles, ignore=True), data).rowcount
 
     def write_measurements(self, rows):
         """Bulk insert (in batches of storage.yaml batch_size); duplicates (time, asset, source) are skipped."""
@@ -471,12 +496,16 @@ class Store:
         return rows
 
     def actions(self, controller=None, limit=500):
+        """Executed switch operations, newest first (limit=None: all of them)."""
         a = S.actions
         q = select(a)
         if controller:
             q = q.where(a.c.controller == controller)
+        q = q.order_by(a.c.id.desc())
+        if limit:
+            q = q.limit(limit)
         with self.engine.connect() as c:
-            return pd.DataFrame(c.execute(q.order_by(a.c.id.desc()).limit(limit)).mappings().all())
+            return pd.DataFrame(c.execute(q).mappings().all())
 
     def record_alerts(self, sim_time, rows, context=""):
         """Store alerts observed at a simulated time. The same alert (time, asset, kind, context) is kept once."""
@@ -606,7 +635,7 @@ class Store:
 
     # ------------------------------------------------------------------ retention
     def prune(self, now_sim):
-        """Delete measurements and alerts older than the retention window (storage.yaml) before `now_sim`.
+        """Delete measurements, alerts and forecasts older than the retention window (storage.yaml) before `now_sim`.
         Returns {table: rows deleted}. A window of 0 days keeps everything."""
         now_sim = pd.Timestamp(now_sim).to_pydatetime()
         out = {}
@@ -619,6 +648,12 @@ class Store:
             if days:
                 cut = (now_sim - dt.timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
                 out["alerts"] = c.execute(delete(S.alerts).where(S.alerts.c.sim_time < cut)).rowcount
+            days = self.retention.get("forecasts_days", 0)
+            if days:
+                cut = now_sim - dt.timedelta(days=days)
+                out["forecast_quantiles"] = c.execute(delete(S.forecast_quantiles)
+                                                      .where(S.forecast_quantiles.c.target_time < cut)).rowcount
+                out["forecasts"] = c.execute(delete(S.forecasts).where(S.forecasts.c.target_time < cut)).rowcount
         return out
 
 

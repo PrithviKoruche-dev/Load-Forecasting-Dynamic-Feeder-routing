@@ -35,27 +35,41 @@ def _rss_mb():
         return float("nan")
 
 
-def loop_benchmark(steps=None, scenario=SCENARIO, db_dir=None):
+CITY_SCENARIO, CITY_START = "C4 Heatwave and EV adoption", "2023-05-08 00:00"   # the city's busiest week
+
+
+def loop_benchmark(steps=None, scenario=None, db_dir=None, start=None):
     """Run the orchestrator as fast as possible; per-stage timings, throughput, memory and database growth."""
-    from orchestrator import STAGES, Orchestrator
+    from orchestrator import STAGES, Orchestrator, city_name, prepare_database
     from storage import Store
+    city = city_name()
+    scenario = scenario or (CITY_SCENARIO if city else SCENARIO)
+    start = start or (CITY_START if city else None)
     rows = []
     with tempfile.TemporaryDirectory(dir=db_dir) as d:
         path = Path(d) / "bench.db"
         store = Store(f"sqlite:///{path.as_posix()}")
-        store.import_forecast_csv(ROOT / "data" / "forecast.csv")
-        store.import_intervals_csv(ROOT / "data" / "forecast_intervals.csv")
+        if city:
+            prepare_database(store)
+        else:
+            store.import_forecast_csv(ROOT / "data" / "forecast.csv")
+            store.import_intervals_csv(ROOT / "data" / "forecast_intervals.csv")
         rss0 = _rss_mb()
-        o = Orchestrator(store, scenario=scenario, service="benchmark", forecast_source="precomputed")
+        o = Orchestrator(store, scenario=scenario, service="benchmark", forecast_source=None if city else "precomputed")
         o.ctl.set_mode("auto")
         db0 = path.stat().st_size + (Path(str(path) + "-wal").stat().st_size if Path(str(path) + "-wal").exists() else 0)
         rss_start, rss_peak = _rss_mb(), 0.0
-        times = list(o.demand.times())[:steps] if steps else list(o.demand.times())
+        times = [t for t in o.demand.times() if start is None or t >= pd.Timestamp(start)]
+        times = times[:steps] if steps else times
+        warm = min(100, len(times) // 5)                  # memory growth is measured after a warm-up
+        rss_warm = None
         t0 = time.perf_counter()
-        for t in times:
+        for i, t in enumerate(times):
             r = o.step(t, run_id=1)
             rows.append({**r["timings_ms"], "total": r["duration_ms"]})
             rss_peak = max(rss_peak, _rss_mb())
+            if i + 1 == warm:
+                rss_warm = _rss_mb()
         wall = time.perf_counter() - t0
         rss_end = _rss_mb()
         with store.engine.connect() as c:                      # fold the write-ahead log into the file
@@ -77,9 +91,11 @@ def loop_benchmark(steps=None, scenario=SCENARIO, db_dir=None):
             ("accelerated_budget_per_60min_step", 3600 / acc * 1000, "ms"),
             ("accelerated_budget_per_15min_step", 900 / acc * 1000, "ms"),
             ("accelerated_budget_used_60min", 100 * mean_s / (3600 / acc), "%"),
+            ("accelerated_budget_used_this_step", 100 * mean_s / (step_s / acc), f"% of {step_s / acc * 1000:.0f} ms"),
             ("memory_rss_before_engine", rss0, "MB"), ("memory_rss_start", rss_start, "MB"),
             ("memory_rss_peak", rss_peak, "MB"), ("memory_rss_end", rss_end, "MB"),
-            ("memory_growth_per_1000_steps", (rss_end - rss_start) / len(t) * 1000, "MB"),
+            ("memory_growth_per_1000_steps", (rss_end - rss_warm) / max(1, len(t) - warm) * 1000 if rss_warm else
+             float("nan"), "MB (after warm-up)"),
             ("database_growth_per_step", (db1 - db0) / len(t) / 1024, "KB"),
             ("database_growth_per_simulated_year", (db1 - db0) / len(t) * 365 * 86400 / step_s / 2 ** 20, "MB")]
     return out
@@ -121,14 +137,19 @@ def machine():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Measure the closed loop's performance.")
-    ap.add_argument("--steps", type=int, help="steps to time (default: the whole test period)")
+    ap.add_argument("--steps", type=int, help="steps to time (default: the whole test period; a city: one week)")
+    ap.add_argument("--city", help="a synthetic city (cities/<name>)")
     a = ap.parse_args(argv)
-    rows = machine() + loop_benchmark(a.steps) + clock_benchmark()
+    from core import config as cfg
+    cfg.use_city(a.city)
+    steps = a.steps or (7 * 96 if a.city else None)
+    rows = machine() + loop_benchmark(steps) + clock_benchmark(target_factor=3600.0 if a.city else 36000.0)
     df = pd.DataFrame(rows, columns=["metric", "value", "unit"])
     df["value"] = [round(v, 3) if isinstance(v, float) else v for v in df["value"]]
-    df.to_csv(OUT, index=False)
+    out = OUT if not a.city else ROOT / "docs" / f"performance_city_{a.city}.csv"
+    df.to_csv(out, index=False)
     print(df.to_string(index=False))
-    print(f"Saved {OUT.relative_to(ROOT)}")
+    print(f"Saved {out.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

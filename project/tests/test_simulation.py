@@ -356,7 +356,7 @@ def test_killed_service_recovers_and_gives_the_same_result(tmp_path, project_roo
     want = pd.read_csv(project_root / "docs" / "closed_loop.csv").set_index("scenario").loc[S3]
     assert int(steps["measured_over"].sum()) == want["measured_tx_hours_over_with_control"]
     assert int(steps["measured_over_normal"].sum()) == want["measured_tx_hours_over_no_control"]
-    assert len(s.actions(controller="service")) == want["switch_operations"]
+    assert len(s.actions(controller="service", limit=None)) == want["switch_operations"]
     assert int((steps["config_before"].map(len) > 0).sum()) == want["hours_rerouted"]
 
 

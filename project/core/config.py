@@ -12,6 +12,7 @@ alternative city configurations do this).
 import datetime as _dt
 import os
 import re
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,6 +34,29 @@ class ConfigError(ValueError):
 
 def config_dir():
     return Path(os.environ.get("LFDR_CONFIG_DIR", PROJECT_ROOT / "config"))
+
+
+def use_city(name):
+    """Point the whole project at a synthetic city's generated configuration (cities/<name>/config), for this
+    process and the processes it starts. None or "" keeps the classic eMARC configuration."""
+    if not name:
+        return None
+    folder = PROJECT_ROOT / "cities" / name / "config"
+    if not (folder / "grid.yaml").exists():
+        raise ConfigError(f"no generated city at {folder}: run python city/generate.py {name}")
+    os.environ["LFDR_CONFIG_DIR"] = str(folder)
+    reload()
+    return folder
+
+
+def city_arg(argv=None):
+    """Read `--city NAME` from the command line (also after Streamlit's `--`) and apply it."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--city" in argv:
+        i = argv.index("--city")
+        if i + 1 < len(argv):
+            return use_city(argv[i + 1])
+    return None
 
 
 def reload():
@@ -95,13 +119,31 @@ def move_options(g):
     return out
 
 
+def substations(g):
+    """{name: {id, bus, ...}}: the classic file's single `substation`, or a generated city's `substations`.
+    Each substation is an 11 kV source in the OpenDSS model."""
+    if "substations" in g:
+        return {n: {"bus": n, **s} for n, s in g["substations"].items()}
+    s = g["substation"]
+    return {s["name"]: {"bus": s.get("bus", s["name"]), **s}}
+
+
+def feeder_substation(g, feeder):
+    """Name of the substation a feeder leaves from."""
+    subs = substations(g)
+    return g["feeders"][feeder].get("substation") or next(iter(subs))
+
+
 # ------------------------------------------------------------------ files
 @lru_cache(maxsize=None)
 def grid():
     f = "grid"
     g = _read(f)
     _need(project_path(_get(g, f, "network_file")).exists(), f, f"network_file {g['network_file']} not found")
-    _id(_get(g, f, "substation", "id"), "substation", f, "substation")
+    _need(("substation" in g) != ("substations" in g), f, "give either 'substation' (one) or 'substations' (several)")
+    subs = substations(g)
+    for name, s in subs.items():
+        _id(s.get("id"), "substation", f, f"substation {name}")
 
     txs = _get(g, f, "transformers")
     _need(isinstance(txs, dict) and txs, f, "'transformers' must be a non-empty mapping")
@@ -112,6 +154,8 @@ def grid():
     for name, fd in feeders.items():
         _id(fd.get("id"), "feeder", f, f"feeder {name}")
         _need(isinstance(fd.get("head_line"), str), f, f"feeder {name}: 'head_line' is required")
+        if len(subs) > 1 or "substation" in fd:
+            _need(fd.get("substation") in subs, f, f"feeder {name}: unknown substation {fd.get('substation')!r}")
         for t in fd.get("transformers", []):
             _need(t in txs, f, f"feeder {name} lists unknown transformer {t}")
     for t, tx in txs.items():
@@ -150,7 +194,7 @@ def grid():
         _need(switches.get(mv.get("close"), {}).get("kind") == "mv_tie", f,
               f"mv_transfers {name}: 'close' must be an mv_tie switch")
 
-    all_ids = ([g["substation"]["id"]] + [fd["id"] for fd in feeders.values()]
+    all_ids = ([s["id"] for s in subs.values()] + [fd["id"] for fd in feeders.values()]
                + [tx["id"] for tx in txs.values()] + [sw["id"] for sw in switches.values()])
     dup = {i for i in all_ids if all_ids.count(i) > 1}
     _need(not dup, f, f"duplicate IDs: {sorted(dup)}")
@@ -170,6 +214,8 @@ def operations():
     _number(o, f, "limits", "line_limit_pct", low=0, low_open=True)
     _number(o, f, "rerouting", "min_improvement_pct", low=0)
     _number(o, f, "rerouting", "tie_tolerance_pct", low=0)
+    _need(o["rerouting"].get("candidate_scope", "all") in ("all", "relevant"), f,
+          "rerouting.candidate_scope must be all or relevant")
     _need(isinstance(_get(o, f, "rerouting", "use_mv_transfers"), bool), f, "rerouting.use_mv_transfers must be true or false")
     elev = _number(o, f, "risk", "elevated_from_pct", low=0)
     _need(elev < thr, f, "risk.elevated_from_pct must be below the overload threshold")
@@ -214,6 +260,9 @@ def scenarios():
         for sc in s[group]:
             for i, r in enumerate(sc.get("rules", [])):
                 check_rule(r, f"{group} '{sc['name']}' rule {i + 1}")
+            ev = sc.get("events", [])
+            _need(isinstance(ev, list) and all(isinstance(e, str) for e in ev), f,
+                  f"{group} '{sc['name']}': events must be a list of event names (synthetic city)")
     _number(s, f, "quick", "base_kw", low=0, low_open=True)
     for sc in _get(s, f, "quick", "scenarios"):
         for i, r in enumerate(sc.get("rules", [])):
@@ -232,10 +281,24 @@ def scenarios():
     return s
 
 
+def _check_intervals(c, f):
+    lo = _number(c, f, "intervals", "lower_quantile", low=0, high=1, low_open=True)
+    hi = _number(c, f, "intervals", "upper_quantile", low=0, high=1)
+    _need(lo < hi < 1, f, "intervals: lower_quantile < upper_quantile < 1")
+    _need(_get(c, f, "intervals", "method") in ("rolling", "static"), f, "intervals.method must be rolling or static")
+    _number(c, f, "intervals", "window_days", low=1)
+    hb = _number(c, f, "intervals", "hour_blocks", low=1, high=24)
+    _need(24 % hb == 0, f, "intervals.hour_blocks must divide 24")
+    _need(isinstance(_get(c, f, "intervals", "use_upper_for_risk"), bool), f, "intervals.use_upper_for_risk must be true/false")
+
+
 @lru_cache(maxsize=None)
 def forecasting():
     f = "forecasting"
     c = _read(f)
+    if c.get("source") == "city":                       # a synthetic city: forecasts are made at run time
+        _check_intervals(c, f)
+        return c
     for k in ("start", "end"):
         v = _get(c, f, "data", k)
         if isinstance(v, _dt.date):                     # unquoted YAML dates arrive as date objects
@@ -267,14 +330,7 @@ def forecasting():
     _need(tr + va < 1, f, "split.train + split.val must leave room for a test split")
     _get(c, f, "model", "xgboost")
     _number(c, f, "scaling", "target_peak_kw", low=0, low_open=True)
-    lo = _number(c, f, "intervals", "lower_quantile", low=0, high=1, low_open=True)
-    hi = _number(c, f, "intervals", "upper_quantile", low=0, high=1)
-    _need(lo < hi < 1, f, "intervals: lower_quantile < upper_quantile < 1")
-    _need(_get(c, f, "intervals", "method") in ("rolling", "static"), f, "intervals.method must be rolling or static")
-    _number(c, f, "intervals", "window_days", low=1)
-    hb = _number(c, f, "intervals", "hour_blocks", low=1, high=24)
-    _need(24 % hb == 0, f, "intervals.hour_blocks must divide 24")
-    _need(isinstance(_get(c, f, "intervals", "use_upper_for_risk"), bool), f, "intervals.use_upper_for_risk must be true/false")
+    _check_intervals(c, f)
     _need(isinstance(_get(c, f, "v2", "model_version"), str), f, "v2.model_version is required")
     for k in ("n_estimators", "min_samples_leaf"):
         _number(c, f, "v2", "random_forest", k, low=1)
@@ -294,6 +350,8 @@ def storage():
     _number(c, f, "batch_size", low=1)
     for k in ("measurements_days", "alerts_days"):
         _number(c, f, "retention", k, low=0)
+    c["retention"].setdefault("forecasts_days", 0)
+    _number(c, f, "retention", "forecasts_days", low=0)
     _need(isinstance(_get(c, f, "forecast_import", "model_version"), str), f, "forecast_import.model_version is required")
     _need(isinstance(_get(c, f, "forecast_import", "measurement_source"), str), f,
           "forecast_import.measurement_source is required")
@@ -327,8 +385,11 @@ def simulation():
     _need(o.get("scenario") in names, f, f"orchestrator.scenario must be one of {names}, got {o.get('scenario')!r}")
     _need(o.get("mode") in ("monitor", "recommend", "auto"), f,
           f"orchestrator.mode must be monitor, recommend or auto, got {o.get('mode')!r}")
-    _need(o.get("forecast_source") in ("precomputed", "live"), f,
-          f"orchestrator.forecast_source must be precomputed or live, got {o.get('forecast_source')!r}")
+    _need(o.get("forecast_source") in ("precomputed", "live", "persistence"), f,
+          f"orchestrator.forecast_source must be precomputed, live or persistence, got {o.get('forecast_source')!r}")
+    _need(c.get("city") is None or isinstance(c["city"], str), f, "city must be the name of a folder in cities/")
+    _need((c.get("city") is None) == (o["forecast_source"] != "persistence"), f,
+          "forecast_source persistence is for a synthetic city (and a city uses it)")
     _need(isinstance(o.get("pause_on_recommendation"), bool), f, "orchestrator.pause_on_recommendation must be true or false")
     for k in ("poll_interval_s", "heartbeat_s", "stale_after_s"):
         _number(c, f, "service", k, low=0, low_open=True)

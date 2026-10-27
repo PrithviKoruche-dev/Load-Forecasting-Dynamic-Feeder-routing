@@ -12,6 +12,7 @@ pandas>=2.0
 pyarrow>=14
 xgboost>=2.0          # 2.0+ needed: enable_categorical with hist, JSON models, multi-quantile regression
 scikit-learn>=1.4     # 1.4+ needed: Random Forest accepts missing values (ml/train_v2.py)
+scipy>=1.10           # synthetic city: weather and noise processes (city/demand.py)
 networkx>=3.0
 openpyxl>=3.1         # reading the eMARC household info .xlsx
 pyyaml>=6.0           # project/config/*.yaml

@@ -165,6 +165,10 @@ class Service:
         t = self.clock.next_time
         row = self.orch.step(t, self.run_id)
         self.clock.advance()
+        if pd.Timestamp(t).normalize() != pd.Timestamp(self.clock.next_time).normalize():   # once per simulated day
+            pruned = self.store.prune(t)
+            if any(pruned.values()):
+                log.debug("retention: %s", pruned)
         if self.clock.factor is not None:
             behind = self.clock.lag_s > self.cfg["clock"]["behind_warning_s"]
             if behind and not self._behind:
@@ -339,6 +343,7 @@ def main(argv=None):
     from core.logging_setup import setup
     from core.paths import LOGS_DIR
     ap = argparse.ArgumentParser(description="Run the closed-loop simulation service.")
+    ap.add_argument("--city", help="run a synthetic city (cities/<name>, made by city/generate.py)")
     ap.add_argument("--speed", help="simulated seconds per wall second, 'accelerated' (1 year per 24 h) or 'max'")
     ap.add_argument("--mode", choices=["monitor", "recommend", "auto"])
     ap.add_argument("--scenario", help="a benchmark scenario name from config/scenarios.yaml")
@@ -348,7 +353,8 @@ def main(argv=None):
     ap.add_argument("--steps", type=int, help="stop after this many steps")
     ap.add_argument("--exit-when-idle", action="store_true", help="exit when the clock is paused or finished")
     args = ap.parse_args(argv)
-    setup(log_file=LOGS_DIR / "service.log")
+    config.use_city(args.city)
+    setup(log_file=LOGS_DIR / ("service.log" if not args.city else f"service_{args.city}.log"))
     try:
         svc = Service(new_run=args.new_run, paused=args.paused, scenario=args.scenario, forecast_source=args.forecast)
     except ServiceRunning as ex:

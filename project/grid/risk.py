@@ -39,6 +39,7 @@ class RiskModel:
         self.line_approaching = r["line_approaching_pct"]
         d = o["decisions"]
         self.conf_high, self.conf_medium = d["confidence_high"], d["confidence_medium"]
+        self.source_buses = {s["bus"].lower() for s in config.substations(config.grid()).values()}
 
     # ------------------------------------------------------------------ transformers
     def band(self, pct, threshold=None):
@@ -79,7 +80,7 @@ class RiskModel:
     def voltage_alerts(self, bus_voltages):
         out = []
         for bus, v in sorted(bus_voltages.items(), key=lambda kv: kv[1]):
-            if bus.lower() == "sub":
+            if bus.lower() in self.source_buses:
                 continue
             if v < self.v_min:
                 out.append(self._alert("voltage_low", "violation", bus, v, self.v_min, f"bus {bus.upper()} at {v:.4f} pu (< {self.v_min:g})"))

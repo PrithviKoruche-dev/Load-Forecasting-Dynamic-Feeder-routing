@@ -1,0 +1,352 @@
+Clear
+New Circuit.City basekv=11 pu=1.0 phases=3 bus1=S1 MVAsc3=300 MVAsc1=300
+New Vsource.S2 bus1=S2 basekv=11 pu=1.0 phases=3 MVAsc3=300 MVAsc1=300
+New Vsource.S3 bus1=S3 basekv=11 pu=1.0 phases=3 MVAsc3=300 MVAsc1=300
+New Linecode.LC11 nphases=3 r1=0.16 x1=0.11 r0=0.5 x0=0.4 units=km normamps=380 emergamps=450
+
+! Feeder F1 from substation S1
+New Line.F1L1 bus1=S1 bus2=F1B1 linecode=LC11 length=0.45 units=km
+New Line.F1L2 bus1=F1B1 bus2=F1B2 linecode=LC11 length=0.74 units=km
+New Line.F1L3 bus1=F1B2 bus2=F1B3 linecode=LC11 length=0.3 units=km
+New Line.F1SEC bus1=F1B3 bus2=F1B3s switch=yes
+New Line.F1L4 bus1=F1B3s bus2=F1B4 linecode=LC11 length=0.71 units=km
+New Line.F1L5 bus1=F1B4 bus2=F1B5 linecode=LC11 length=0.7 units=km
+New Line.F1L6 bus1=F1B5 bus2=F1B6 linecode=LC11 length=0.53 units=km
+
+! Feeder F2 from substation S1
+New Line.F2L1 bus1=S1 bus2=F2B1 linecode=LC11 length=0.61 units=km
+New Line.F2L2 bus1=F2B1 bus2=F2B2 linecode=LC11 length=0.56 units=km
+New Line.F2SEC bus1=F2B2 bus2=F2B2s switch=yes
+New Line.F2L3 bus1=F2B2s bus2=F2B3 linecode=LC11 length=0.55 units=km
+New Line.F2L4 bus1=F2B3 bus2=F2B4 linecode=LC11 length=0.42 units=km
+New Line.F2L5 bus1=F2B4 bus2=F2B5 linecode=LC11 length=0.31 units=km
+
+! Feeder F3 from substation S1
+New Line.F3L1 bus1=S1 bus2=F3B1 linecode=LC11 length=0.55 units=km
+New Line.F3L2 bus1=F3B1 bus2=F3B2 linecode=LC11 length=0.74 units=km
+New Line.F3L3 bus1=F3B2 bus2=F3B3 linecode=LC11 length=0.48 units=km
+New Line.F3SEC bus1=F3B3 bus2=F3B3s switch=yes
+New Line.F3L4 bus1=F3B3s bus2=F3B4 linecode=LC11 length=0.6 units=km
+New Line.F3L5 bus1=F3B4 bus2=F3B5 linecode=LC11 length=0.33 units=km
+New Line.F3L6 bus1=F3B5 bus2=F3B6 linecode=LC11 length=0.49 units=km
+
+! Feeder F4 from substation S2
+New Line.F4L1 bus1=S2 bus2=F4B1 linecode=LC11 length=0.74 units=km
+New Line.F4L2 bus1=F4B1 bus2=F4B2 linecode=LC11 length=0.63 units=km
+New Line.F4L3 bus1=F4B2 bus2=F4B3 linecode=LC11 length=0.37 units=km
+New Line.F4SEC bus1=F4B3 bus2=F4B3s switch=yes
+New Line.F4L4 bus1=F4B3s bus2=F4B4 linecode=LC11 length=0.72 units=km
+New Line.F4L5 bus1=F4B4 bus2=F4B5 linecode=LC11 length=0.77 units=km
+New Line.F4L6 bus1=F4B5 bus2=F4B6 linecode=LC11 length=0.75 units=km
+
+! Feeder F5 from substation S2
+New Line.F5L1 bus1=S2 bus2=F5B1 linecode=LC11 length=0.31 units=km
+New Line.F5L2 bus1=F5B1 bus2=F5B2 linecode=LC11 length=0.49 units=km
+New Line.F5SEC bus1=F5B2 bus2=F5B2s switch=yes
+New Line.F5L3 bus1=F5B2s bus2=F5B3 linecode=LC11 length=0.32 units=km
+New Line.F5L4 bus1=F5B3 bus2=F5B4 linecode=LC11 length=0.36 units=km
+New Line.F5L5 bus1=F5B4 bus2=F5B5 linecode=LC11 length=0.78 units=km
+
+! Feeder F6 from substation S2
+New Line.F6L1 bus1=S2 bus2=F6B1 linecode=LC11 length=0.71 units=km
+New Line.F6L2 bus1=F6B1 bus2=F6B2 linecode=LC11 length=0.37 units=km
+New Line.F6L3 bus1=F6B2 bus2=F6B3 linecode=LC11 length=0.51 units=km
+New Line.F6SEC bus1=F6B3 bus2=F6B3s switch=yes
+New Line.F6L4 bus1=F6B3s bus2=F6B4 linecode=LC11 length=0.71 units=km
+New Line.F6L5 bus1=F6B4 bus2=F6B5 linecode=LC11 length=0.31 units=km
+New Line.F6L6 bus1=F6B5 bus2=F6B6 linecode=LC11 length=0.61 units=km
+
+! Feeder F7 from substation S3
+New Line.F7L1 bus1=S3 bus2=F7B1 linecode=LC11 length=0.67 units=km
+New Line.F7L2 bus1=F7B1 bus2=F7B2 linecode=LC11 length=0.59 units=km
+New Line.F7L3 bus1=F7B2 bus2=F7B3 linecode=LC11 length=0.51 units=km
+New Line.F7SEC bus1=F7B3 bus2=F7B3s switch=yes
+New Line.F7L4 bus1=F7B3s bus2=F7B4 linecode=LC11 length=0.74 units=km
+New Line.F7L5 bus1=F7B4 bus2=F7B5 linecode=LC11 length=0.51 units=km
+New Line.F7L6 bus1=F7B5 bus2=F7B6 linecode=LC11 length=0.76 units=km
+
+! Feeder F8 from substation S3
+New Line.F8L1 bus1=S3 bus2=F8B1 linecode=LC11 length=0.6 units=km
+New Line.F8L2 bus1=F8B1 bus2=F8B2 linecode=LC11 length=0.54 units=km
+New Line.F8SEC bus1=F8B2 bus2=F8B2s switch=yes
+New Line.F8L3 bus1=F8B2s bus2=F8B3 linecode=LC11 length=0.6 units=km
+New Line.F8L4 bus1=F8B3 bus2=F8B4 linecode=LC11 length=0.63 units=km
+
+! Normally open ties between the far ends of neighbouring feeders
+New Line.TIE1 bus1=F1B6 bus2=F2B5 switch=yes
+Open Line.TIE1 term=1
+New Line.TIE2 bus1=F3B6 bus2=F4B6 switch=yes
+Open Line.TIE2 term=1
+New Line.TIE3 bus1=F5B5 bus2=F6B6 switch=yes
+Open Line.TIE3 term=1
+New Line.TIE4 bus1=F7B6 bus2=F8B4 switch=yes
+Open Line.TIE4 term=1
+
+! Distribution transformers 11/0.415 kV, their load blocks and LV switches
+New Transformer.T01 phases=3 windings=2 buses=(F1B1, L01) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD01a bus1=L01 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD01b bus1=L01b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW01H bus1=L01b bus2=L01 switch=yes
+New Line.SW01A bus1=L01b bus2=L02 switch=yes
+Open Line.SW01A term=1
+New Transformer.T02 phases=3 windings=2 buses=(F1B2, L02) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD02a bus1=L02 phases=3 kV=0.415 kW=160.0 pf=0.92
+New Load.LD02b bus1=L02b phases=3 kV=0.415 kW=40.0 pf=0.92
+New Line.SW02H bus1=L02b bus2=L02 switch=yes
+New Line.SW02A bus1=L02b bus2=L03 switch=yes
+Open Line.SW02A term=1
+New Transformer.T03 phases=3 windings=2 buses=(F1B3, L03) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD03a bus1=L03 phases=3 kV=0.415 kW=252.0 pf=0.93
+New Load.LD03b bus1=L03b phases=3 kV=0.415 kW=63.0 pf=0.93
+New Line.SW03H bus1=L03b bus2=L03 switch=yes
+New Line.SW03A bus1=L03b bus2=L04 switch=yes
+Open Line.SW03A term=1
+New Transformer.T04 phases=3 windings=2 buses=(F1B4, L04) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD04a bus1=L04 phases=3 kV=0.415 kW=252.0 pf=0.95
+New Load.LD04b bus1=L04b phases=3 kV=0.415 kW=63.0 pf=0.95
+New Line.SW04H bus1=L04b bus2=L04 switch=yes
+New Line.SW04A bus1=L04b bus2=L05 switch=yes
+Open Line.SW04A term=1
+New Transformer.T05 phases=3 windings=2 buses=(F1B5, L05) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD05a bus1=L05 phases=3 kV=0.415 kW=200.0 pf=0.95
+New Load.LD05b bus1=L05b phases=3 kV=0.415 kW=50.0 pf=0.95
+New Line.SW05H bus1=L05b bus2=L05 switch=yes
+New Line.SW05A bus1=L05b bus2=L06 switch=yes
+Open Line.SW05A term=1
+New Transformer.T06 phases=3 windings=2 buses=(F1B6, L06) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD06a bus1=L06 phases=3 kV=0.415 kW=160.0 pf=0.92
+New Load.LD06b bus1=L06b phases=3 kV=0.415 kW=40.0 pf=0.92
+New Line.SW06H bus1=L06b bus2=L06 switch=yes
+New Line.SW06A bus1=L06b bus2=L05 switch=yes
+Open Line.SW06A term=1
+New Transformer.T07 phases=3 windings=2 buses=(F2B1, L07) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD07a bus1=L07 phases=3 kV=0.415 kW=100.0 pf=0.88
+New Load.LD07b bus1=L07b phases=3 kV=0.415 kW=25.0 pf=0.88
+New Line.SW07H bus1=L07b bus2=L07 switch=yes
+New Line.SW07A bus1=L07b bus2=L08 switch=yes
+Open Line.SW07A term=1
+New Transformer.T08 phases=3 windings=2 buses=(F2B2, L08) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD08a bus1=L08 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD08b bus1=L08b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW08H bus1=L08b bus2=L08 switch=yes
+New Line.SW08A bus1=L08b bus2=L09 switch=yes
+Open Line.SW08A term=1
+New Transformer.T09 phases=3 windings=2 buses=(F2B3, L09) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD09a bus1=L09 phases=3 kV=0.415 kW=100.0 pf=0.95
+New Load.LD09b bus1=L09b phases=3 kV=0.415 kW=25.0 pf=0.95
+New Line.SW09H bus1=L09b bus2=L09 switch=yes
+New Line.SW09A bus1=L09b bus2=L10 switch=yes
+Open Line.SW09A term=1
+New Transformer.T10 phases=3 windings=2 buses=(F2B4, L10) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD10a bus1=L10 phases=3 kV=0.415 kW=160.0 pf=0.93
+New Load.LD10b bus1=L10b phases=3 kV=0.415 kW=40.0 pf=0.93
+New Line.SW10H bus1=L10b bus2=L10 switch=yes
+New Line.SW10A bus1=L10b bus2=L11 switch=yes
+Open Line.SW10A term=1
+New Transformer.T11 phases=3 windings=2 buses=(F2B5, L11) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD11a bus1=L11 phases=3 kV=0.415 kW=200.0 pf=0.95
+New Load.LD11b bus1=L11b phases=3 kV=0.415 kW=50.0 pf=0.95
+New Line.SW11H bus1=L11b bus2=L11 switch=yes
+New Line.SW11A bus1=L11b bus2=L10 switch=yes
+Open Line.SW11A term=1
+New Transformer.T12 phases=3 windings=2 buses=(F3B1, L12) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD12a bus1=L12 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD12b bus1=L12b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW12H bus1=L12b bus2=L12 switch=yes
+New Line.SW12A bus1=L12b bus2=L13 switch=yes
+Open Line.SW12A term=1
+New Transformer.T13 phases=3 windings=2 buses=(F3B2, L13) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD13a bus1=L13 phases=3 kV=0.415 kW=160.0 pf=0.93
+New Load.LD13b bus1=L13b phases=3 kV=0.415 kW=40.0 pf=0.93
+New Line.SW13H bus1=L13b bus2=L13 switch=yes
+New Line.SW13A bus1=L13b bus2=L14 switch=yes
+Open Line.SW13A term=1
+New Transformer.T14 phases=3 windings=2 buses=(F3B3, L14) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD14a bus1=L14 phases=3 kV=0.415 kW=200.0 pf=0.92
+New Load.LD14b bus1=L14b phases=3 kV=0.415 kW=50.0 pf=0.92
+New Line.SW14H bus1=L14b bus2=L14 switch=yes
+New Line.SW14A bus1=L14b bus2=L15 switch=yes
+Open Line.SW14A term=1
+New Transformer.T15 phases=3 windings=2 buses=(F3B4, L15) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD15a bus1=L15 phases=3 kV=0.415 kW=100.0 pf=0.95
+New Load.LD15b bus1=L15b phases=3 kV=0.415 kW=25.0 pf=0.95
+New Line.SW15H bus1=L15b bus2=L15 switch=yes
+New Line.SW15A bus1=L15b bus2=L16 switch=yes
+Open Line.SW15A term=1
+New Transformer.T16 phases=3 windings=2 buses=(F3B5, L16) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD16a bus1=L16 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD16b bus1=L16b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW16H bus1=L16b bus2=L16 switch=yes
+New Line.SW16A bus1=L16b bus2=L17 switch=yes
+Open Line.SW16A term=1
+New Transformer.T17 phases=3 windings=2 buses=(F3B6, L17) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD17a bus1=L17 phases=3 kV=0.415 kW=160.0 pf=0.88
+New Load.LD17b bus1=L17b phases=3 kV=0.415 kW=40.0 pf=0.88
+New Line.SW17H bus1=L17b bus2=L17 switch=yes
+New Line.SW17A bus1=L17b bus2=L16 switch=yes
+Open Line.SW17A term=1
+New Transformer.T18 phases=3 windings=2 buses=(F4B1, L18) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD18a bus1=L18 phases=3 kV=0.415 kW=200.0 pf=0.95
+New Load.LD18b bus1=L18b phases=3 kV=0.415 kW=50.0 pf=0.95
+New Line.SW18H bus1=L18b bus2=L18 switch=yes
+New Line.SW18A bus1=L18b bus2=L19 switch=yes
+Open Line.SW18A term=1
+New Transformer.T19 phases=3 windings=2 buses=(F4B2, L19) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD19a bus1=L19 phases=3 kV=0.415 kW=252.0 pf=0.92
+New Load.LD19b bus1=L19b phases=3 kV=0.415 kW=63.0 pf=0.92
+New Line.SW19H bus1=L19b bus2=L19 switch=yes
+New Line.SW19A bus1=L19b bus2=L20 switch=yes
+Open Line.SW19A term=1
+New Transformer.T20 phases=3 windings=2 buses=(F4B3, L20) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD20a bus1=L20 phases=3 kV=0.415 kW=252.0 pf=0.92
+New Load.LD20b bus1=L20b phases=3 kV=0.415 kW=63.0 pf=0.92
+New Line.SW20H bus1=L20b bus2=L20 switch=yes
+New Line.SW20A bus1=L20b bus2=L21 switch=yes
+Open Line.SW20A term=1
+New Transformer.T21 phases=3 windings=2 buses=(F4B4, L21) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD21a bus1=L21 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD21b bus1=L21b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW21H bus1=L21b bus2=L21 switch=yes
+New Line.SW21A bus1=L21b bus2=L22 switch=yes
+Open Line.SW21A term=1
+New Transformer.T22 phases=3 windings=2 buses=(F4B5, L22) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD22a bus1=L22 phases=3 kV=0.415 kW=100.0 pf=0.93
+New Load.LD22b bus1=L22b phases=3 kV=0.415 kW=25.0 pf=0.93
+New Line.SW22H bus1=L22b bus2=L22 switch=yes
+New Line.SW22A bus1=L22b bus2=L23 switch=yes
+Open Line.SW22A term=1
+New Transformer.T23 phases=3 windings=2 buses=(F4B6, L23) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD23a bus1=L23 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD23b bus1=L23b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW23H bus1=L23b bus2=L23 switch=yes
+New Line.SW23A bus1=L23b bus2=L22 switch=yes
+Open Line.SW23A term=1
+New Transformer.T24 phases=3 windings=2 buses=(F5B1, L24) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD24a bus1=L24 phases=3 kV=0.415 kW=200.0 pf=0.95
+New Load.LD24b bus1=L24b phases=3 kV=0.415 kW=50.0 pf=0.95
+New Line.SW24H bus1=L24b bus2=L24 switch=yes
+New Line.SW24A bus1=L24b bus2=L25 switch=yes
+Open Line.SW24A term=1
+New Transformer.T25 phases=3 windings=2 buses=(F5B2, L25) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD25a bus1=L25 phases=3 kV=0.415 kW=252.0 pf=0.95
+New Load.LD25b bus1=L25b phases=3 kV=0.415 kW=63.0 pf=0.95
+New Line.SW25H bus1=L25b bus2=L25 switch=yes
+New Line.SW25A bus1=L25b bus2=L26 switch=yes
+Open Line.SW25A term=1
+New Transformer.T26 phases=3 windings=2 buses=(F5B3, L26) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD26a bus1=L26 phases=3 kV=0.415 kW=200.0 pf=0.95
+New Load.LD26b bus1=L26b phases=3 kV=0.415 kW=50.0 pf=0.95
+New Line.SW26H bus1=L26b bus2=L26 switch=yes
+New Line.SW26A bus1=L26b bus2=L27 switch=yes
+Open Line.SW26A term=1
+New Transformer.T27 phases=3 windings=2 buses=(F5B4, L27) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD27a bus1=L27 phases=3 kV=0.415 kW=200.0 pf=0.93
+New Load.LD27b bus1=L27b phases=3 kV=0.415 kW=50.0 pf=0.93
+New Line.SW27H bus1=L27b bus2=L27 switch=yes
+New Line.SW27A bus1=L27b bus2=L28 switch=yes
+Open Line.SW27A term=1
+New Transformer.T28 phases=3 windings=2 buses=(F5B5, L28) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD28a bus1=L28 phases=3 kV=0.415 kW=252.0 pf=0.95
+New Load.LD28b bus1=L28b phases=3 kV=0.415 kW=63.0 pf=0.95
+New Line.SW28H bus1=L28b bus2=L28 switch=yes
+New Line.SW28A bus1=L28b bus2=L27 switch=yes
+Open Line.SW28A term=1
+New Transformer.T29 phases=3 windings=2 buses=(F6B1, L29) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD29a bus1=L29 phases=3 kV=0.415 kW=200.0 pf=0.92
+New Load.LD29b bus1=L29b phases=3 kV=0.415 kW=50.0 pf=0.92
+New Line.SW29H bus1=L29b bus2=L29 switch=yes
+New Line.SW29A bus1=L29b bus2=L30 switch=yes
+Open Line.SW29A term=1
+New Transformer.T30 phases=3 windings=2 buses=(F6B2, L30) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD30a bus1=L30 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD30b bus1=L30b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW30H bus1=L30b bus2=L30 switch=yes
+New Line.SW30A bus1=L30b bus2=L31 switch=yes
+Open Line.SW30A term=1
+New Transformer.T31 phases=3 windings=2 buses=(F6B3, L31) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD31a bus1=L31 phases=3 kV=0.415 kW=100.0 pf=0.95
+New Load.LD31b bus1=L31b phases=3 kV=0.415 kW=25.0 pf=0.95
+New Line.SW31H bus1=L31b bus2=L31 switch=yes
+New Line.SW31A bus1=L31b bus2=L32 switch=yes
+Open Line.SW31A term=1
+New Transformer.T32 phases=3 windings=2 buses=(F6B4, L32) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD32a bus1=L32 phases=3 kV=0.415 kW=200.0 pf=0.95
+New Load.LD32b bus1=L32b phases=3 kV=0.415 kW=50.0 pf=0.95
+New Line.SW32H bus1=L32b bus2=L32 switch=yes
+New Line.SW32A bus1=L32b bus2=L33 switch=yes
+Open Line.SW32A term=1
+New Transformer.T33 phases=3 windings=2 buses=(F6B5, L33) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD33a bus1=L33 phases=3 kV=0.415 kW=252.0 pf=0.95
+New Load.LD33b bus1=L33b phases=3 kV=0.415 kW=63.0 pf=0.95
+New Line.SW33H bus1=L33b bus2=L33 switch=yes
+New Line.SW33A bus1=L33b bus2=L34 switch=yes
+Open Line.SW33A term=1
+New Transformer.T34 phases=3 windings=2 buses=(F6B6, L34) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD34a bus1=L34 phases=3 kV=0.415 kW=160.0 pf=0.92
+New Load.LD34b bus1=L34b phases=3 kV=0.415 kW=40.0 pf=0.92
+New Line.SW34H bus1=L34b bus2=L34 switch=yes
+New Line.SW34A bus1=L34b bus2=L33 switch=yes
+Open Line.SW34A term=1
+New Transformer.T35 phases=3 windings=2 buses=(F7B1, L35) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD35a bus1=L35 phases=3 kV=0.415 kW=100.0 pf=0.95
+New Load.LD35b bus1=L35b phases=3 kV=0.415 kW=25.0 pf=0.95
+New Line.SW35H bus1=L35b bus2=L35 switch=yes
+New Line.SW35A bus1=L35b bus2=L36 switch=yes
+Open Line.SW35A term=1
+New Transformer.T36 phases=3 windings=2 buses=(F7B2, L36) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD36a bus1=L36 phases=3 kV=0.415 kW=252.0 pf=0.95
+New Load.LD36b bus1=L36b phases=3 kV=0.415 kW=63.0 pf=0.95
+New Line.SW36H bus1=L36b bus2=L36 switch=yes
+New Line.SW36A bus1=L36b bus2=L37 switch=yes
+Open Line.SW36A term=1
+New Transformer.T37 phases=3 windings=2 buses=(F7B3, L37) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD37a bus1=L37 phases=3 kV=0.415 kW=200.0 pf=0.88
+New Load.LD37b bus1=L37b phases=3 kV=0.415 kW=50.0 pf=0.88
+New Line.SW37H bus1=L37b bus2=L37 switch=yes
+New Line.SW37A bus1=L37b bus2=L38 switch=yes
+Open Line.SW37A term=1
+New Transformer.T38 phases=3 windings=2 buses=(F7B4, L38) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD38a bus1=L38 phases=3 kV=0.415 kW=252.0 pf=0.95
+New Load.LD38b bus1=L38b phases=3 kV=0.415 kW=63.0 pf=0.95
+New Line.SW38H bus1=L38b bus2=L38 switch=yes
+New Line.SW38A bus1=L38b bus2=L39 switch=yes
+Open Line.SW38A term=1
+New Transformer.T39 phases=3 windings=2 buses=(F7B5, L39) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD39a bus1=L39 phases=3 kV=0.415 kW=160.0 pf=0.95
+New Load.LD39b bus1=L39b phases=3 kV=0.415 kW=40.0 pf=0.95
+New Line.SW39H bus1=L39b bus2=L39 switch=yes
+New Line.SW39A bus1=L39b bus2=L40 switch=yes
+Open Line.SW39A term=1
+New Transformer.T40 phases=3 windings=2 buses=(F7B6, L40) conns=(delta, wye) kVs=(11, 0.415) kVAs=(630, 630) %loadloss=1 xhl=4
+New Load.LD40a bus1=L40 phases=3 kV=0.415 kW=252.0 pf=0.93
+New Load.LD40b bus1=L40b phases=3 kV=0.415 kW=63.0 pf=0.93
+New Line.SW40H bus1=L40b bus2=L40 switch=yes
+New Line.SW40A bus1=L40b bus2=L39 switch=yes
+Open Line.SW40A term=1
+New Transformer.T41 phases=3 windings=2 buses=(F8B1, L41) conns=(delta, wye) kVs=(11, 0.415) kVAs=(400, 400) %loadloss=1 xhl=4
+New Load.LD41a bus1=L41 phases=3 kV=0.415 kW=160.0 pf=0.93
+New Load.LD41b bus1=L41b phases=3 kV=0.415 kW=40.0 pf=0.93
+New Line.SW41H bus1=L41b bus2=L41 switch=yes
+New Line.SW41A bus1=L41b bus2=L42 switch=yes
+Open Line.SW41A term=1
+New Transformer.T42 phases=3 windings=2 buses=(F8B2, L42) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD42a bus1=L42 phases=3 kV=0.415 kW=200.0 pf=0.92
+New Load.LD42b bus1=L42b phases=3 kV=0.415 kW=50.0 pf=0.92
+New Line.SW42H bus1=L42b bus2=L42 switch=yes
+New Line.SW42A bus1=L42b bus2=L43 switch=yes
+Open Line.SW42A term=1
+New Transformer.T43 phases=3 windings=2 buses=(F8B3, L43) conns=(delta, wye) kVs=(11, 0.415) kVAs=(250, 250) %loadloss=1 xhl=4
+New Load.LD43a bus1=L43 phases=3 kV=0.415 kW=100.0 pf=0.95
+New Load.LD43b bus1=L43b phases=3 kV=0.415 kW=25.0 pf=0.95
+New Line.SW43H bus1=L43b bus2=L43 switch=yes
+New Line.SW43A bus1=L43b bus2=L44 switch=yes
+Open Line.SW43A term=1
+New Transformer.T44 phases=3 windings=2 buses=(F8B4, L44) conns=(delta, wye) kVs=(11, 0.415) kVAs=(500, 500) %loadloss=1 xhl=4
+New Load.LD44a bus1=L44 phases=3 kV=0.415 kW=200.0 pf=0.88
+New Load.LD44b bus1=L44b phases=3 kV=0.415 kW=50.0 pf=0.88
+New Line.SW44H bus1=L44b bus2=L44 switch=yes
+New Line.SW44A bus1=L44b bus2=L43 switch=yes
+Open Line.SW44A term=1
+
+Set voltagebases=[11, 0.415]
+Calcvoltagebases

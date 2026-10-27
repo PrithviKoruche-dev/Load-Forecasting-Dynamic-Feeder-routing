@@ -11,6 +11,8 @@ rerouting:
   min_improvement_pct: 0.05             # greedy search stops when the best move improves the peak by less than this
   use_mv_transfers: false               # also consider the MV transfers in grid.yaml (off for the published benchmark)
   tie_tolerance_pct: 0.001              # moves whose peaks differ by less than this count as equal; lower losses wins
+  candidate_scope: all                  # all: try every action (the published benchmark); relevant: only actions that
+                                        # move load off an overloaded transformer or make room for it (large networks)
 
 # Five risk classes (gap-analysis item F5). Forecast-based risk is kept separate from measured risk.
 #   normal < elevated < approaching < predicted_overload < actual_overload

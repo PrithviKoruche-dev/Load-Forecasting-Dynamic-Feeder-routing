@@ -23,11 +23,12 @@ Tables and what they hold:
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Table,
                         Text, UniqueConstraint)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 # What each version added. Opening an older database adds the missing tables and columns (additive changes
 # only; nothing is dropped or rewritten), then records the new version.
 MIGRATIONS = {
     2: "Phase 6: per-transformer data on every simulation step (sim_steps) and service settings (sim_state)",
+    3: "Phase 7: consumer ID and type on meters (synthetic city)",
 }
 metadata = MetaData()
 
@@ -49,7 +50,9 @@ meters = Table("meters", metadata,
                Column("transformer_asset_id", String(20), ForeignKey("assets.asset_id"), nullable=False),
                Column("deployment_id", String(40)),
                Column("household_id", String(40)),
-               Column("region", String(60)))
+               Column("region", String(60)),
+               Column("consumer_id", String(20)),                 # synthetic city (schema version 3)
+               Column("consumer_type", String(20)))               # residential | commercial | industrial | mixed
 
 forecasts = Table("forecasts", metadata,
                   Column("id", Integer, primary_key=True, autoincrement=True),

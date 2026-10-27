@@ -52,10 +52,11 @@ def meter_id(n):
 def registry():
     """All network assets: asset_id, kind, name, parent_id, rating_kva (transformers), normal (switches)."""
     g = _grid()
-    sub = g["substation"]
-    rows = [{"asset_id": sub["id"], "kind": "substation", "name": sub["name"], "parent_id": None}]
+    subs = config.substations(g)
+    rows = [{"asset_id": s["id"], "kind": "substation", "name": n, "parent_id": None} for n, s in subs.items()]
     for name, fd in g["feeders"].items():
-        rows.append({"asset_id": fd["id"], "kind": "feeder", "name": name, "parent_id": sub["id"]})
+        rows.append({"asset_id": fd["id"], "kind": "feeder", "name": name,
+                     "parent_id": subs[config.feeder_substation(g, name)]["id"]})
     for name, tx in g["transformers"].items():
         rows.append({"asset_id": tx["id"], "kind": "transformer", "name": name,
                      "parent_id": g["feeders"][tx["feeder"]]["id"], "rating_kva": tx["rating_kva"]})

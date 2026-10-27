@@ -12,6 +12,7 @@ batch_size: 1000                        # rows per INSERT when writing measureme
 retention:                              # how long high-volume data is kept (days of simulated time); 0 = forever
   measurements_days: 0                  # transformer and meter readings (meter streams arrive in Phase 8)
   alerts_days: 0
+  forecasts_days: 0                     # forecasts and their bands (a synthetic city keeps 60 days of everything)
 
 forecast_import:
   model_version: xgb-24h-v1             # label for the committed 24-hour-ahead forecasts (data/forecast.csv)
