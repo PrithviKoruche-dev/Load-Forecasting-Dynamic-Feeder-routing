@@ -64,7 +64,14 @@ def dss(fn, *args):
 
 
 
-from decisions import MODES, SEVERITY, Controller, DecisionError  # noqa: E402  (no OpenDSS import inside)
+_dec = sys.modules.get("decisions")                     # this folder has a page called decisions.py too:
+if _dec is None or Path(getattr(_dec, "__file__", "")).parent != ROOT / "grid":     # make sure it is grid's
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location("decisions", ROOT / "grid" / "decisions.py")
+    _dec = importlib.util.module_from_spec(_spec)
+    sys.modules["decisions"] = _dec
+    _spec.loader.exec_module(_dec)
+MODES, SEVERITY, Controller, DecisionError = _dec.MODES, _dec.SEVERITY, _dec.Controller, _dec.DecisionError
 from risk import LABELS as RISK_LABELS, RiskModel  # noqa: E402
 from storage import Store  # noqa: E402
 from core import ids  # noqa: E402
