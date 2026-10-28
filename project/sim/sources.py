@@ -422,6 +422,18 @@ class ShortHorizonForecasts:
         return 1
 
 
+def city_forecast_error(city, forecast):
+    """Relative error (nRMSE / 100) of a city's forecast on its test month, from docs/forecast_short_city_<city>.csv
+    (forecast = "model", "last value" or "persistence 24h"); None when the table is missing. The controller's
+    confidence in a decision is computed from it, as the classic network uses docs/metrics.csv."""
+    path = ROOT / "docs" / f"forecast_short_city_{city}.csv"
+    if not path.exists():
+        return None
+    d = pd.read_csv(path)
+    d = d[d["forecast"] == forecast]
+    return None if d.empty else float(d["nRMSE_%"].mean()) / 100
+
+
 def forecast_source(kind, store, frame=None, demand=None, **kw):
     if kind == "precomputed":
         return PrecomputedForecasts(store, frame)

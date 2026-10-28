@@ -34,12 +34,12 @@ def transformer_panel(tx, last, thr):
                f"rating **{info['rating_kva']:g} kVA**")
     k = st.columns(3)
     k[0].metric("Measured loading", _fmt(g("measured_pct")), help=f"hour {last['sim_time']:%d %b %H:%M}")
-    k[1].metric("Forecast for that hour", _fmt(g("forecast_pct")), help=f"{C.FC_AHEAD} forecast, same configuration")
+    k[1].metric(f"Forecast for that {C.STEP}", _fmt(g("forecast_pct")), help=f"{C.FC_AHEAD} forecast, same configuration")
     k[2].metric("Upper bound (P90)", _fmt(g("upper_pct")))
     k = st.columns(3)
     k[0].metric("Load", f"{det.get('kw', 0):,.0f} kW" if det else "-", help=f"{det.get('kvar', 0):,.0f} kvar" if det else None)
     k[1].metric("Apparent power", f"{det.get('kva', 0):,.0f} kVA" if det else "-")
-    k[2].metric("Next hour forecast", _fmt(g("next_forecast_pct")), help="in the configuration now in force")
+    k[2].metric(f"Next {C.STEP} forecast", _fmt(g("next_forecast_pct")), help="in the configuration now in force")
     st.markdown(f"Risk class: **{C.RISK_LABELS.get(risk, '-')}** · threshold {thr:g}% · hard limit {C.HARD_LIMIT:g}%")
     moves = C.moves_of(tx)
     active = set(last.get("config_after") or [])
@@ -82,11 +82,12 @@ def body():
         st.info("No step with network data yet in this run.")
         return
     thr = C.settings(state)["threshold"]
-    view = st.radio("Show", ["Hour just measured", "Next hour (forecast)"], horizontal=True, key="net_view")
-    if view == "Hour just measured":
+    just, ahead = f"{C.STEP.capitalize()} just measured", f"Next {C.STEP} (forecast)"
+    view = st.radio("Show", [just, ahead], horizontal=True, key="net_view")
+    if view == just:
         loading, moves, sw = last["measured_pct"], last["config_before"], C.switch_states(last.get("switches"))
         risk = last.get("risk")
-        cap = f"Measured loading in hour {last['sim_time']:%d %b %H:%M}, configuration then in force."
+        cap = f"Measured loading in the {C.STEP} {last['sim_time']:%d %b %H:%M}, configuration then in force."
     else:
         loading = last.get("next_forecast_pct") or last["measured_pct"]
         moves, sw, risk = last["config_after"], C.switch_states(last.get("switches_after")), None

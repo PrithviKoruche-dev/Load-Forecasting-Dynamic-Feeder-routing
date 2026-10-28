@@ -66,7 +66,7 @@ def body():
         st.divider()
 
     last = C.last_step(state)
-    st.subheader("Alerts in the hour just completed")
+    st.subheader(f"Alerts in the {C.STEP} just completed")
     if last is None:
         st.caption("No step yet.")
     else:

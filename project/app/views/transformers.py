@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common as C  # noqa: E402
 import plots  # noqa: E402
 
-C.page_header("Transformers", "Every transformer in the hour just completed. Click a column header to sort; "
+C.page_header("Transformers", f"Every transformer in the {C.STEP} just completed. Click a column header to sort; "
               "select a row to see its history.")
 st.session_state.setdefault("tx_pick", C.TX[0])
 

@@ -79,7 +79,8 @@ if state:
                   help="continue the current run from this hour")
         st.button("Start a new run from this time", on_click=lambda: C.send("restart", **{"from": when}),
                   help="a new run that starts running at once (earlier runs stay in the database); switches return to normal")
-        st.caption(f"Simulation range {clk['start'][:16]} to {clk['end'][:16]} (the eMARC test period).")
+        st.caption(f"Simulation range {clk['start'][:16]} to {clk['end'][:16]} "
+                   + ("(the synthetic city's year)." if C.SIM.get("city") else "(the eMARC test period)."))
         st.subheader("Scenario and season")
         names = [s_.name for s_ in scenarios.benchmark()]
         sc = st.selectbox("Scenario", names, index=names.index(state["scenario"]) if state["scenario"] in names else 0,
@@ -90,8 +91,8 @@ if state:
         st.caption("Season calendar (config/simulation.yaml): "
                    + "; ".join(f"{k} {', '.join(datetime(2000, m, 1).strftime('%b') for m in v)}"
                                for k, v in C.SIM["seasons"].items())
-                   + ". With the real eMARC data the season is a label; the synthetic city (Phase 7) will use it to "
-                     "shape demand.")
+                   + (". The synthetic city uses it to shape demand (profiles by season)." if C.SIM.get("city") else
+                      ". With the real eMARC data the season is a label; a synthetic city uses it to shape demand."))
     with c:
         st.subheader("Operation")
         modes = list(C.MODES)

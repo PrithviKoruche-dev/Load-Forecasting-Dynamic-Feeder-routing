@@ -97,7 +97,8 @@ class Orchestrator:
         self.forecasts = forecasts or make_forecasts(forecast_source or sim["forecast_source"], store, frame,
                                                      demand=self.demand)
         self.service = service or sim["controller"]
-        self.ctl = controller or Controller(self.engine, store=store, name=self.service)
+        self.ctl = controller or Controller(self.engine, store=store, name=self.service,
+                                            error_by_tx=self._forecast_error())
         self.risk = RiskModel()
         self.threshold = float(self.engine.threshold if threshold is None else threshold)
         self.use_mv = use_mv
@@ -118,7 +119,20 @@ class Orchestrator:
             return self.forecasts
         frame = None if city_name() else self.store.forecast_frame()
         self.forecasts = make_forecasts(kind, self.store, frame, demand=self.demand)
+        err = self._forecast_error()
+        if err:
+            self.ctl.error_by_tx = err
         return self.forecasts
+
+    def _forecast_error(self):
+        """{tx: relative error} of a city's forecast, for the controller's confidence (None: the classic
+        network's published day-ahead errors, docs/metrics.csv)."""
+        from sources import city_forecast_error
+        city = city_name()
+        if not city:
+            return None
+        rel = city_forecast_error(city, {"short": "model", "persistence": "persistence 24h"}.get(self.forecasts.name))
+        return {tx: rel for tx in config.grid()["transformers"]} if rel else None
 
     def clear_from(self, t):
         """A new timeline starts at t (new run, jump, scenario change): delete what earlier timelines wrote

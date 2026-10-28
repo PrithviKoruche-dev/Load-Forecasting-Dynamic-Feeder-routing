@@ -48,13 +48,13 @@ def body():
     active = 0 if alerts.empty else int((~alerts["level"].isin(["normal"])).sum())
     k = st.columns(4)
     k[0].metric("Total load", f"{total:,.0f} kW" if total is not None else "-",
-                help="measured, all transformers, in the hour just completed")
+                help=f"measured, all transformers, in the {C.STEP} just completed")
     k[1].metric("Peak loading", f"{last['measured_max_pct']:.1f} %" if last.get("measured_max_pct") is not None else "-",
                 delta=None if last.get("measured_max_normal_pct") is None or last["measured_max_pct"] is None
                 or abs(last["measured_max_pct"] - last["measured_max_normal_pct"]) < 0.05 else
                 f"{last['measured_max_pct'] - last['measured_max_normal_pct']:+.1f} pts by control",
                 delta_color="inverse", help="measured; the change shows what the switching in force made")
-    k[2].metric("Active alerts", active, help="risk and voltage/line alerts in the hour just completed")
+    k[2].metric("Active alerts", active, help=f"risk and voltage/line alerts in the {C.STEP} just completed")
     k[3].metric("Configuration now", ", ".join(last.get("config_after") or []) or "normal")
 
     clk = state["clock"]

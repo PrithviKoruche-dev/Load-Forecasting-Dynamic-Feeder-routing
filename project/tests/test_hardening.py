@@ -228,3 +228,17 @@ def test_the_forecasting_page_opens_on_the_model_the_service_uses(city, tmp_path
     m = {x.label: x.value for x in at.metric}
     run = s.forecast_performance(until="2023-05-09 18:30", model_version="short-15m-v1", since="2023-05-09 18:00")
     assert int(m["Scored"].replace(",", "")) == int(run.set_index("transformer").loc["ALL", "scored"]) > 0   # this run's
+
+
+def test_the_city_confidence_uses_the_city_forecast_error(city, tmp_path):
+    """A restore to a peak of 76% is safe to within a 4% forecast error: the confidence must say so (with the
+    classic day-ahead error of about 33% it said 'low')."""
+    s, svc = city_service(tmp_path)
+    err = svc.orch.ctl.error_by_tx
+    assert set(err) == set(config.grid()["transformers"]) and 0.03 < max(err.values()) < 0.05
+    loads = {t: 60.0 for t in err}
+    loads["T01"] = 76.0
+    c = svc.orch.ctl.risk.confidence(loads, err, 85)
+    assert c["label"] == "high"
+    svc.orch.set_forecast_source("persistence")
+    assert 0.2 < max(svc.orch.ctl.error_by_tx.values()) < 0.25

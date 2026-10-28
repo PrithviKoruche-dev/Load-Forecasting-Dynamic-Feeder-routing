@@ -37,3 +37,12 @@ def base_loads():
     """300 kW on every transformer: about 64% loading, the network's normal operating point."""
     import engine
     return {t: 300.0 for t in engine.TX}
+
+
+def pytest_collection_modifyitems(session, config, items):
+    """Run the replay-dashboard tests first. That page runs OpenDSS on a worker thread of its own, and in one
+    long pytest process (many circuits built on the main thread before it, the synthetic city's among them) the
+    OpenDSS library has occasionally crashed the process there. Running those tests first made it rarer here; the
+    dashboard and the service each run in their own process, so this only concerns the test process."""
+    first = [i for i in items if i.fspath.basename == "test_dashboard.py"]
+    items[:] = first + [i for i in items if i.fspath.basename != "test_dashboard.py"]
