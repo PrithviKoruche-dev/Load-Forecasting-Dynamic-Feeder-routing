@@ -40,6 +40,11 @@ COMMANDS = ("resume", "pause", "step", "speed", "jump", "restart", "mode", "scen
             "policy", "approve", "reject", "estop", "clear_estop", "rollback", "reset", "stop")
 
 
+def _sources_for(cfg):
+    """The forecast sources a configuration can use."""
+    return ("persistence", "short") if cfg.get("city") else ("precomputed", "live")
+
+
 class ServiceRunning(RuntimeError):
     """Another service with the same name is alive."""
 
@@ -72,9 +77,12 @@ class Service:
         if orchestrator is None:
             from orchestrator import Orchestrator, prepare_database
             prepare_database(self.store)
+            saved = (prev or {}).get("forecast_source")
+            if new_run or saved not in _sources_for(cfg):          # a new run uses the configured source
+                saved = None
             orchestrator = Orchestrator(self.store, service=self.name,
                                         scenario=scenario or (prev or {}).get("scenario"),
-                                        forecast_source=forecast_source or (prev or {}).get("forecast_source"))
+                                        forecast_source=forecast_source or saved)
         self.orch = orchestrator
         if scenario:
             self.orch.set_scenario(scenario)
@@ -102,6 +110,7 @@ class Service:
                 self.ctl.cancel_pending("new run")
                 if self.ctl.active:
                     self.ctl.reset_to_normal(None)
+            self.orch.clear_from(self.clock.next_time)
             how = "started"
         else:
             self.run_id = prev["run_id"]
@@ -233,6 +242,7 @@ class Service:
             return f"speed {clk.set_speed(a.get('speed'))}"
         if command == "jump":
             clk.jump(a.get("time"))
+            self.orch.clear_from(clk.next_time)
             ctl.cancel_pending("time jump")
             if self.paused_for_rec:
                 self.paused_for_rec, self.note = False, ""
@@ -245,6 +255,10 @@ class Service:
             clk.restart()
             if start_at:
                 clk.jump(start_at)
+            configured = self.cfg["orchestrator"]["forecast_source"]
+            if self.orch.forecasts.name != configured:             # a new run uses the configured forecast
+                self.orch.set_forecast_source(configured)
+            self.orch.clear_from(clk.next_time)
             ctl.cancel_pending("restart")
             if ctl.active:
                 ctl.reset_to_normal(None)
@@ -262,6 +276,7 @@ class Service:
             return f"mode {ctl.mode}"
         if command == "scenario":
             self.orch.set_scenario(a.get("name"))
+            self.orch.clear_from(clk.next_time)                    # forecasts made for the old scenario
             ctl.cancel_pending("scenario changed")
             self._after_decision()
             ctl.note("service", f"scenario changed to {self.orch.scenario.name}", self._label())

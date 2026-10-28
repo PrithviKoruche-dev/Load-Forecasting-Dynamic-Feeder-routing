@@ -136,3 +136,95 @@ def test_a_failed_step_pauses_the_clock_and_the_service_keeps_serving(tmp_path, 
     s.send_command("service", "pause")
     svc.handle_commands()
     assert s.load_sim_state("service")["status"] == "paused"                 # the failure is no longer reported
+
+
+# ------------------------------------------------------------------ a new timeline (new run, jump, scenario)
+@pytest.fixture
+def city(project_root, monkeypatch):
+    monkeypatch.setenv("LFDR_CONFIG_DIR", str(project_root / "cities" / "demo" / "config"))
+    config.reload()
+    yield
+    monkeypatch.delenv("LFDR_CONFIG_DIR")
+    config.reload()
+
+
+def city_service(tmp_path, prev_source=None, new_run=False):
+    from orchestrator import prepare_database
+    from service import Service
+    from storage import Store
+    s = Store(f"sqlite:///{(tmp_path / 'city.db').as_posix()}")
+    prepare_database(s)
+    if prev_source:                                                           # a state saved by an older run
+        s.save_sim_state("service", run_id=3, scenario="C4 Heatwave and EV adoption", forecast_source=prev_source,
+                         status="stopped", clock={"speed": "max", "running": False, "next_time": "2023-08-03 16:15",
+                                                   "last_time": None})
+    w = FakeWall()
+    return s, Service(s, name="service", wall=w, sleep=w.sleep, new_run=new_run)
+
+
+def test_a_new_run_uses_the_configured_forecast_not_the_one_saved_by_an_older_run(city, tmp_path):
+    s, svc = city_service(tmp_path, prev_source="persistence")
+    assert svc.orch.forecasts.name == "persistence"                          # resuming the old run keeps it
+    svc.execute("restart", {"from": "2023-05-09 18:00"})
+    assert svc.orch.forecasts.name == "short" and svc.run_id == 4
+    s.engine.dispose()
+    (tmp_path / "b").mkdir()
+    _, svc2 = city_service(tmp_path / "b", prev_source="persistence", new_run=True)
+    assert svc2.orch.forecasts.name == "short"
+
+
+def test_a_new_timeline_clears_what_earlier_runs_wrote_from_its_start(city, tmp_path):
+    s, svc = city_service(tmp_path)
+    svc.execute("mode", {"mode": "auto"})
+    svc.execute("jump", {"time": "2023-05-09 18:00"})
+    for _ in range(3):
+        svc.step_once()
+    mv = svc.orch.forecasts.model_version
+    with s.engine.connect() as c:
+        n = lambda q: c.exec_driver_sql(q).scalar_one()  # noqa: E731
+        before = (n("select count(*) from measurements where source = 'dt-scada'"),
+                  n(f"select count(*) from forecasts where model_version = '{mv}'"))
+    assert before[0] > 0 and before[1] > 0
+    svc.execute("restart", {"from": "2023-05-09 18:15"})                      # a new run over the same times
+    with s.engine.connect() as c:
+        after = (n("select count(*) from measurements where source = 'dt-scada'"),
+                 n(f"select count(*) from forecasts where model_version = '{mv}'"),
+                 n("select min(time) from measurements where source = 'dt-scada'"))
+    tx = len(config.grid()["transformers"])
+    assert after[0] == tx and str(after[2]).startswith("2023-05-09 18:00")   # only the step before the new start
+    assert after[1] == 0                                                       # forecasts for 18:15 on are gone
+    svc.step_once()
+    perf = s.forecast_performance(until="2023-05-09 18:15", model_version=mv, since="2023-05-09 18:15")
+    assert perf.empty                                                         # nothing from the old run is scored
+
+
+def test_the_classic_network_keeps_its_imported_data_on_a_new_run(tmp_path, project_root):
+    from orchestrator import Orchestrator
+    from storage import Store
+    s = Store(f"sqlite:///{(tmp_path / 'c.db').as_posix()}")
+    s.import_forecast_csv(project_root / "data" / "forecast.csv")
+    o = Orchestrator(s, engine=e.GridEngine(), service="t", forecast_source="precomputed")
+    n0 = s.counts()
+    assert o.clear_from(o.demand.times()[0]) == {} and s.counts() == n0
+
+
+def test_the_forecasting_page_opens_on_the_model_the_service_uses(city, tmp_path, monkeypatch, project_root):
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv("LFDR_DB_URL", f"sqlite:///{(tmp_path / 'city.db').as_posix()}")
+    s, svc = city_service(tmp_path)
+    s.write_forecasts([("2023-01-01 00:00", "DT-001", 1.0)], "persistence-24h")      # left by older runs
+    s.write_forecasts([("2023-01-01 00:00", "DT-001", 1.0)], "short-15m-v1", horizon_h=0.25)
+    s.write_measurements([{"time": pd.Timestamp("2023-01-01").to_pydatetime(), "asset_id": "DT-001",
+                           "source": "dt-scada", "kw": 2.0, "quality": "good"}])
+    s.score_forecasts("2023-01-02", model_version="short-15m-v1")
+    svc.execute("jump", {"time": "2023-05-09 18:00"})
+    for _ in range(3):
+        svc.step_once()
+    svc.save_state()
+    at = AppTest.from_file(str(project_root / "app" / "views" / "forecasting.py"), default_timeout=90)
+    at.run()
+    assert not at.exception
+    assert at.selectbox(key="fc_version").value == "short-15m-v1"
+    m = {x.label: x.value for x in at.metric}
+    run = s.forecast_performance(until="2023-05-09 18:30", model_version="short-15m-v1", since="2023-05-09 18:00")
+    assert int(m["Scored"].replace(",", "")) == int(run.set_index("transformer").loc["ALL", "scored"]) > 0   # this run's

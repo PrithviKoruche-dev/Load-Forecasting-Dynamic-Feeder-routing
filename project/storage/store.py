@@ -334,7 +334,7 @@ class Store:
                     c.execute(stmt, chunk)
         return len(todo)
 
-    def forecast_performance(self, until=None, model_version=None, source=None):
+    def forecast_performance(self, until=None, model_version=None, source=None, since=None):
         """Accuracy of the forecasts scored so far (target time <= until), per transformer and pooled:
         scored, pending, MAE, RMSE, nRMSE (% of mean actual) and bias (+ = over-forecast), in grid kW."""
         model_version = model_version or self.import_cfg["model_version"]
@@ -346,6 +346,8 @@ class Store:
              .where(f.c.model_version == model_version))
         if until is not None:
             q = q.where(f.c.target_time <= pd.Timestamp(until).to_pydatetime())
+        if since is not None:
+            q = q.where(f.c.target_time >= pd.Timestamp(since).to_pydatetime())
         with self.engine.connect() as c:
             d = pd.DataFrame(c.execute(q).mappings().all())
         cols = ["transformer", "scored", "pending", "MAE_kW", "RMSE_kW", "nRMSE_%", "bias_kW"]
@@ -362,7 +364,7 @@ class Store:
                          "bias_kW": float(e_.mean()) if len(s_) else None})
         return pd.DataFrame(rows, columns=cols)
 
-    def forecast_errors(self, until=None, model_version=None, source=None):
+    def forecast_errors(self, until=None, model_version=None, source=None, since=None):
         """Every forecast with its actual value (target time <= until): timestamp, transformer, predicted_kw,
         actual_kw, error_kw (forecast - actual). For accuracy over time (dashboard page D)."""
         model_version = model_version or self.import_cfg["model_version"]
@@ -375,6 +377,8 @@ class Store:
              .where(f.c.model_version == model_version, m.c.kw.is_not(None)))
         if until is not None:
             q = q.where(f.c.target_time <= pd.Timestamp(until).to_pydatetime())
+        if since is not None:
+            q = q.where(f.c.target_time >= pd.Timestamp(since).to_pydatetime())
         with self.engine.connect() as c:
             d = pd.DataFrame(c.execute(q.order_by(f.c.target_time)).mappings().all())
         if d.empty:
@@ -681,6 +685,27 @@ class Store:
     def models(self):
         with self.engine.connect() as c:
             return pd.DataFrame(c.execute(select(S.model_registry)).mappings().all())
+
+    # ------------------------------------------------------------------ a new timeline
+    def clear_from(self, t, sources=(), model_version=None, meter_readings=False):
+        """Delete what an earlier run wrote at or after simulated time t: measurements of these sources,
+        forecasts and bands of this model version, and (optionally) smart-meter readings. A new run, a jump or a
+        scenario change starts a new timeline from t, and data from another timeline would otherwise be scored
+        against it (inserts keep the first row of a time). Returns {table: rows deleted}."""
+        t = pd.Timestamp(t).to_pydatetime()
+        out = {}
+        with self.engine.begin() as c:
+            if sources:
+                m = S.measurements
+                out["measurements"] = c.execute(delete(m).where(m.c.source.in_(list(sources)), m.c.time >= t)).rowcount
+            if meter_readings:
+                r = S.meter_readings
+                out["meter_readings"] = c.execute(delete(r).where(r.c.interval_time >= t)).rowcount
+            if model_version:
+                for tab in (S.forecast_quantiles, S.forecasts):
+                    out[tab.name] = c.execute(delete(tab).where(tab.c.model_version == model_version,
+                                                                tab.c.target_time >= t)).rowcount
+        return out
 
     # ------------------------------------------------------------------ retention
     def prune(self, now_sim):

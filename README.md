@@ -688,6 +688,7 @@ It keeps serving commands. Resuming tries the step again; jumping or starting a 
 ### Smaller Fixes
 - **Continuous integration** (`.github/workflows/tests.yml`): on every push GitHub installs `requirements.txt`, checks the installation and runs the fast test suite. The two tests that need the eMARC parquet file are skipped there.
 - **Service options:** `python sim/service.py --forecast` now accepts the city's `persistence` and `short` sources.
+- **One timeline per run (Phase 10.1):** runs on one database can cover the same simulated times with different scenarios or forecasts. A new run, a jump or a scenario change now deletes what earlier runs wrote from its start on: the city's measurements and meter readings, and the run-time forecasts. A new run also uses the configured forecast source instead of the one saved by an older run. The Forecasting page opens on the model the service is using and scores only the current run's run-time forecasts.
 - **Dashboard wording:** labels follow the step length and forecast horizon of the configuration in force ("next step" and "15-minute-ahead" for a city), and history windows cover the stated number of hours.
 - **Report:** `docs/REPORT.md` gathers every result of the project in one place as a draft results chapter.
 

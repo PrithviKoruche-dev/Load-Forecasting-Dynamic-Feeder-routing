@@ -91,6 +91,25 @@ def last_step(state):
     return None if d.empty else d.iloc[0].to_dict()
 
 
+def run_start(state):
+    """Simulated time of the current run's first step (None before it)."""
+    if not state:
+        return None
+    d = store().steps(_service(), run_id=state["run_id"], limit=1)
+    return None if d.empty else pd.Timestamp(d.iloc[0]["sim_time"])
+
+
+def model_version_of(state):
+    """The model version the service's forecast source writes (for the Forecasting page's default)."""
+    src = (state or {}).get("forecast_source")
+    base = store().import_cfg["model_version"]
+    if src == "short":
+        sys.path.insert(0, str(ROOT / "ml"))
+        from short_horizon import VERSION
+        return VERSION
+    return {"persistence": "persistence-24h", "live": f"{base}-live"}.get(src, base)
+
+
 def run_steps(state, limit=None):
     if not state:
         return pd.DataFrame()

@@ -111,6 +111,27 @@ class Orchestrator:
             self.demand.set_events(self.scenario.events)
         return self.scenario
 
+    def set_forecast_source(self, kind):
+        """Use another forecast source (a city: persistence or short; the classic network: precomputed or live)."""
+        from sources import forecast_source as make_forecasts
+        if kind == self.forecasts.name:
+            return self.forecasts
+        frame = None if city_name() else self.store.forecast_frame()
+        self.forecasts = make_forecasts(kind, self.store, frame, demand=self.demand)
+        return self.forecasts
+
+    def clear_from(self, t):
+        """A new timeline starts at t (new run, jump, scenario change): delete what earlier timelines wrote
+        from t on that this run writes as it goes (a city's measurements and readings, run-time forecasts)."""
+        sources = getattr(self.demand, "runtime_sources", ())
+        mv = self.forecasts.model_version if getattr(self.forecasts, "runtime", False) else None
+        if not sources and not mv:
+            return {}
+        out = self.store.clear_from(t, sources=sources, model_version=mv, meter_readings=bool(sources))
+        if any(out.values()):
+            log.info("cleared from %s: %s", time_label(t), out)
+        return out
+
     def settings(self):
         """Operator settings that change decisions (persisted by the service)."""
         return {"threshold": self.threshold, "use_mv": self.use_mv}

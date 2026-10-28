@@ -34,16 +34,22 @@ def body():
         st.info("No step yet in this run: nothing has been scored.")
         return
     versions = s.model_versions()
-    default = state.get("forecast_source") == "live" and f"{s.import_cfg['model_version']}-live" in versions
-    mv = st.selectbox("Model version", versions, key="fc_version",
-                      index=versions.index(f"{s.import_cfg['model_version']}-live") if default else
-                      versions.index(s.import_cfg["model_version"]) if s.import_cfg["model_version"] in versions else 0)
-    perf = s.forecast_performance(until=until, model_version=mv)
+    if not versions:
+        st.info("No forecast has been issued yet.")
+        return
+    used = C.model_version_of(state)
+    mv = st.selectbox("Model version", versions, key="fc_version", index=versions.index(used) if used in versions else 0,
+                      help=f"the service is using {used}")
+    # forecasts made as the run goes: this run's only (earlier runs may have covered the same times with
+    # another scenario); imported forecasts (precomputed) belong to no run
+    since = C.run_start(state) if state.get("forecast_source") in ("live", "persistence", "short") else None
+    perf = s.forecast_performance(until=until, model_version=mv, since=since)
     pending = s.forecast_count_after(until, model_version=mv)
     allrow = perf.set_index("transformer").loc["ALL"] if not perf.empty and "ALL" in set(perf["transformer"]) else None
     k = st.columns(5)
     k[0].metric("Scored", f"{int(allrow['scored']):,}" if allrow is not None else 0,
-                help=f"forecasts whose hour has passed (up to {until[:16]})")
+                help=f"forecasts of this run whose time has passed (from {since:%Y-%m-%d %H:%M} to {until[:16]})"
+                if since is not None else f"forecasts whose time has passed (up to {until[:16]})")
     k[1].metric("Pending", f"{pending:,}", help="forecasts for hours still to come")
     k[2].metric("MAE", f"{allrow['MAE_kW']:.1f} kW" if allrow is not None and allrow["scored"] else "-")
     k[3].metric("nRMSE", f"{allrow['nRMSE_%']:.1f} %" if allrow is not None and allrow["scored"] else "-",
@@ -55,7 +61,7 @@ def body():
         return
     st.dataframe(perf.round(2), hide_index=True)
 
-    err = s.forecast_errors(until=until, model_version=mv)
+    err = s.forecast_errors(until=until, model_version=mv, since=since)
     c1, c2 = st.columns(2)
     metric = c1.radio("Metric", ["MAE", "RMSE"], horizontal=True, key="fc_metric")
     freq = {"Daily": "D", "Weekly": "W"}[c2.radio("Over", ["Daily", "Weekly"], horizontal=True, key="fc_freq")]
@@ -71,8 +77,8 @@ def body():
     end = pd.Timestamp(until)
     d = err[(err["transformer"] == tx) & (err["timestamp"] > end - pd.Timedelta(days=days))]
     band = None
-    frame = s.forecast_frame(model_version=s.import_cfg["model_version"])
-    if not frame.empty and {"p10_kw", "p90_kw"} <= set(frame.columns) and mv == s.import_cfg["model_version"]:
+    frame = s.forecast_frame(model_version=mv)
+    if not frame.empty and {"p10_kw", "p90_kw"} <= set(frame.columns):
         b = frame[(frame["transformer_id"] == tx) & frame["timestamp"].isin(d["timestamp"])].set_index("timestamp")
         b = b.reindex(d["timestamp"])
         band = ("P10-P90 band", b["p10_kw"].to_numpy(), b["p90_kw"].to_numpy())

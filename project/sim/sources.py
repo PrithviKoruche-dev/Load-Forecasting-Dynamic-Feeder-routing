@@ -77,6 +77,8 @@ class PrecomputedForecasts:
     def upper(self, t):
         return self._row(self.upper_, t)
 
+    runtime = False                    # every forecast was imported before the run: nothing to clear for a new one
+
     def issue(self, now):
         """Precomputed forecasts were all issued in advance: nothing to do."""
         return 0
@@ -85,6 +87,7 @@ class PrecomputedForecasts:
 class LiveForecasts(PrecomputedForecasts):
     """forecast_at(t) from the committed model at run time."""
     name = "live"
+    runtime = True                     # issued as the run goes: a new run clears them from its start
 
     def __init__(self, store, frame=None, clusters=None, forecaster=None):
         super().__init__(store, frame)
@@ -140,6 +143,11 @@ class CitySource:
     With city.yaml `meters` disabled (or meters=False) the operator sees the true loads (perfect measurement)."""
     name = "city"
     ESTIMATE_SOURCE = "ami-estimate"
+
+    @property
+    def runtime_sources(self):
+        """Measurement sources written as the run goes (cleared from a new run's start, with the readings)."""
+        return [self.source, self.ESTIMATE_SOURCE]
 
     def __init__(self, store, city, scenario=None, meters=None):
         sys.path.insert(0, str(ROOT / "city"))
@@ -287,6 +295,7 @@ class PersistenceForecasts:
     last window_days, per transformer and block of the day, using only loads known at issue time t - 24 h).
     Phase 9 adds a short-horizon model trained on the simulator's history (ShortHorizonForecasts)."""
     name = "persistence"
+    runtime = True                     # issued as the run goes: a new run clears them from its start
     VERSION = "persistence-24h"
 
     def __init__(self, store, demand):
@@ -361,6 +370,7 @@ class ShortHorizonForecasts:
     weather forecast and the calendar, with a P10-P90 band. point(t) is the forecast for t made one step
     before it; the switching decision at the end of step t uses point(t + 1)."""
     name = "short"
+    runtime = True                     # issued as the run goes: a new run clears them from its start
 
     def __init__(self, store, demand):
         sys.path.insert(0, str(ROOT / "ml"))
