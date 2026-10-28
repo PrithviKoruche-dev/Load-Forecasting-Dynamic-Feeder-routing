@@ -6,13 +6,57 @@
 [![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-red.svg)](https://streamlit.io/)
 [![Plotly](https://img.shields.io/badge/Plots-Plotly-purple.svg)](https://plotly.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![tests](https://github.com/PrithviKoruche-dev/Load-Forecasting-Dynamic-Feeder-routing/actions/workflows/tests.yml/badge.svg)](https://github.com/PrithviKoruche-dev/Load-Forecasting-Dynamic-Feeder-routing/actions/workflows/tests.yml)
 
 > **Final Year Engineering Capstone Project**  
-> An autonomous cyber-physical energy management platform that combines **24-hour-ahead machine learning load forecasting** with **real-time physics-constrained power flow optimization** to proactively detect and mitigate transformer overloads through **dynamic low-voltage (LV) load transfers**, with optional **medium-voltage (MV) feeder transfers** over the normally open tie `TIE1`. Every switching proposal is checked by AC power flow, explained, applied according to an operating mode (monitor, recommend-and-approve, or automatic), and recorded in a database that survives restarts.
+> A **closed-loop digital twin** of an electricity distribution network. Every simulated step it **measures** the loads (through realistic transformer and smart meters), **forecasts** the next step with machine learning, **detects** transformers heading for overload, and **reroutes** part of their load to a neighbour, but only after an **AC power flow (OpenDSS)** has shown the switching to be safe (radial, every load supplied, thermal and voltage limits). Decisions are applied according to an operating mode (monitor, recommend-and-approve, or automatic), explained, and recorded in a database that survives restarts. A multi-page **operator dashboard** shows everything live.
+>
+> It runs on two networks: a six-transformer network driven by **real eMARC smart-meter data**, and a generated **synthetic city** of 3 substations, 44 transformers and 5,083 metered consumers.
+
+### 🏆 Results at a Glance
+
+| What | Result | Where |
+|:---|:---|:---|
+| Day-ahead forecast on real data (XGBoost, 24 h ahead) | **25.3% nRMSE** vs 32.2% for "same hour yesterday" | [Forecasting](#-machine-learning-load-forecasting) |
+| Rerouting engine, realistic scenarios (heatwave, EV surge) | **100%** of overload hours resolved, 5–9 ms per decision | [Stress scenarios](#-stress-scenarios--experimental-results) |
+| Closed loop on real data, day-ahead forecast | 10–31% fewer overloaded transformer-hours: limited by what a 24 h forecast sees coming | [Closed loop](#-closed-loop-simulation-service) |
+| City forecast at the decision horizon (15 min ahead) | **3.6–4.1% nRMSE** vs about 22% for 24 h persistence | [Short-horizon forecast](#-short-horizon-forecast-phase-9) |
+| City closed loop, 15-min forecast + restore deadband | **67%** of overloads removed under EV adoption (was 33%), **43%** in heatwave + EV (was 19%); steps above 100% from 17 to **1**; 7–23% fewer switch operations | [Hardening](#-hardening-phase-10) |
+| Realistic meters (delays, losses, stuck meters, outages) | Outcome within 1–5% of perfect measurement; the cost is extra switching, cut by the deadband | [Meters](#-meters-and-data-quality-phase-8) |
+| Engineering | About 300 automated tests (golden results, no-leakage, kill-and-restart, headless dashboard), continuous integration on every push | [Tests](#6-running-the-tests) |
+
+Every number comes from a committed table in `project/docs/`; **[`project/docs/REPORT.md`](project/docs/REPORT.md)** gathers them as a draft results chapter, with the command that regenerates each one.
+
+### 🧭 How the Project Was Built
+
+| Phase | What it added |
+|:---|:---|
+| 0–3 | Clean repository and pinned dependencies; configuration in YAML with validation and asset IDs; engine with candidates, reasons, losses, P/Q/S and MV transfers; risk classes, operating modes and a database that survives restarts |
+| 4 | Forecast metadata and registry, peak and overload metrics, conformal P10–P90 intervals, step-by-step `forecast_at(t)`, v2 experiments (v1 kept) |
+| 5 | Closed-loop orchestrator, simulation clock and background service steered by commands |
+| 6 | Multi-page operator dashboard (overview, network, transformers, forecasting, decisions, controls, audit log) |
+| 7 | Synthetic city: generator, 15-minute demand model, multi-substation engine |
+| 8 | Transformer and smart-meter streams, head-end, data-quality page; the operator sees measurements, results use the truth |
+| 9 | 15-minute-ahead forecast trained on the city's recorded history |
+| 10 | Restore deadband, step-failure handling, continuous integration, results report; 10.1–10.3: one timeline per run, city decision confidence, isolated dashboard tests |
+
+### ⚡ Quick Start
+
+```bash
+git clone https://github.com/PrithviKoruche-dev/Load-Forecasting-Dynamic-Feeder-routing.git
+cd Load-Forecasting-Dynamic-Feeder-routing
+pip install -r requirements.txt
+cd project
+python sim/service.py --city demo --new-run              # terminal 1: the simulation service (keep it open)
+streamlit run app/app.py -- --city demo                  # terminal 2: the dashboard, http://localhost:8501
+```
+On the dashboard's **Controls** page pick scenario *C4 Heatwave and EV adoption*, a date such as 9 May 2023 at 17:00, **Start a new run from this time**, and mode *Automatic*: the evening peaks, reroutes, holds and restores appear within a minute. Leave out `--city demo` (in both commands) to run the six-transformer network on the real eMARC data instead.
 
 ---
 
 ## 📌 Table of Contents
+- [Results at a Glance](#-results-at-a-glance)
+- [Quick Start](#-quick-start)
 - [Project Overview](#-project-overview)
 - [Key Features](#-key-features)
 - [System Architecture](#-system-architecture)
@@ -46,7 +90,9 @@ Modern electrical distribution grids are facing unprecedented stress caused by:
 Conventional utility solutions rely on expensive capital infrastructure upgrades (replacing transformers and underground cables) or crude load shedding (rolling blackouts). 
 
 **Our Solution:**  
-This project presents an intelligent, automated alternative: **Dynamic Feeder Rerouting**. By utilizing smart-meter telemetry and weather data, an **XGBoost Regressor** predicts distribution transformer loads 24 hours in advance. When an impending overload is detected (exceeding 85% of rated capacity), a **greedy constraint-satisfaction optimization engine** interfaced with **EPRI OpenDSS** calculates optimal tie-switch operations to reroute movable load blocks to adjacent, under-utilized transformers. The reconfiguration executes in **sub-10 milliseconds**, strictly enforcing ANSI voltage tolerances and thermal ampacity limits.
+This project presents an intelligent, automated alternative: **Dynamic Feeder Rerouting**. Smart-meter data and weather drive an **XGBoost** load forecast for every distribution transformer. When an overload is forecast (above 85% of rating), a **greedy constraint-satisfaction engine** working with **EPRI OpenDSS** finds the switch operations that move a transformer's movable load block (20%) to an under-used neighbour, checking every option by AC power flow against ANSI voltage limits (0.95–1.05 pu), transformer ratings and cable limits, in **under 10 milliseconds**.
+
+The engine was first evaluated hour by hour on real data, then run as a **closed loop** on a simulation clock, where the decision taken now must hold during the next step. That showed the real limit: the control can only remove the overloads its forecast sees coming. The project therefore moved the forecast to the horizon of the decision (**15 minutes ahead**, from the latest meter readings), added **realistic metering** so the operator decides on measurements rather than on the truth, and a **restore deadband** so measurement noise does not cause switching back and forth.
 
 ---
 
@@ -59,6 +105,7 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - Outperforms persistence baselines by over **21% in nRMSE** (achieving **25.3% nRMSE** at transformer level and **10.8%** for the sum of all six transformers).
   - P10–P90 forecast intervals by rolling conformal calibration (78.3% coverage), with peak-hour and overload-detection metrics showing why forecast risk uses the P90 bound.
   - Versioned model metadata with a file hash, a cold-start builder, step-by-step `forecast_at(t)` and live scoring of forecasts as their hour passes.
+  - **15-minute-ahead forecast for the synthetic city** (one XGBoost model for 44 transformers, trained on the city's recorded history, tested on an unseen May with a heatwave): 3.6–4.1% nRMSE, against 5.3–5.7% for the last reading and about 22% for 24 h persistence.
 
 - **⚡ Physics-Based Power Flow Emulation (OpenDSS):**
   - Full AC distribution power flow simulation using `opendssdirect.py`.
@@ -76,12 +123,12 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
 - **📊 Interactive Streamlit Operator Dashboard:**
   - One multi-page app: overview, network with a clickable inspector, sortable transformer table with history, forecast accuracy over time, alerts and decisions, controls, a filterable audit log and data quality, all reading one state from the database; plus a what-if replay sandbox.
   - Live interactive single-line network diagram powered by Plotly, transformers coloured by risk class, open and closed switches drawn as they are.
-  - Time-scrubbing replay slider with automatic "Jump to Peak Hour" capability.
-  - Automated 24-hour day-ahead overload scanning matrix with severity tagging (`CRITICAL` vs `WARNING`).
+  - A data-quality page: where each value came from (transformer meter, smart-meter estimate, forecast), late and lost readings, stuck meters, and the gap between what the operator saw and the true load.
+  - What-if replay sandbox (six-transformer network): a time-scrubbing slider with "Jump to Peak Hour" and a day-ahead overload scanning matrix with severity tagging (`CRITICAL` vs `WARNING`).
   - Five risk classes (normal, elevated, approaching, predicted overload, actual overload), with forecast risk shown separately from measured risk.
   - Three operating modes: monitor-only, recommend (operator approves), automatic; emergency stop, rollback and an action log.
   - Structured recommendations: ID, numbered switching plan with switch IDs, before/after, losses, constraint checks and a confidence level.
-  - Thread-isolated worker thread architecture preventing C-extension race conditions.
+  - OpenDSS runs on one dedicated worker thread in the sandbox page, because the library is not thread-safe.
 
 - **🗄 Persistent Storage (SQLite, PostgreSQL optional):**
   - Forecasts, measured loads, every recommendation with all its candidates, every switch operation, alerts and the full event log are stored in a database.
@@ -92,6 +139,8 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
   - An orchestrator runs every module once per simulated hour (measure, power flow, forecast, detect, validate, apply or propose, record) as a background service, independent of any dashboard.
   - Simulation clock with pause, resume, single step, jump, restart and variable speed, including an accelerated mode of one simulated year per 24 hours; the achieved speed is measured.
   - All state in the database: the live dashboard and a command-line tool only send commands; a killed service restarts where it stopped and gives the same result.
+  - A restore deadband holds a safe rerouted configuration until the normal one is comfortably under the threshold, and a step that fails pauses the clock instead of stopping the service.
+  - Each new run, jump or scenario change starts a clean timeline, so results of different runs never mix.
 
 - **🏙 Synthetic City:**
   - A generated city of 3 substations, 8 feeders and 44 transformers serving 5,083 households, shops, offices, mixed-use buildings and factories, each with a meter, built from one YAML file and a seed.
@@ -108,43 +157,43 @@ This project presents an intelligent, automated alternative: **Dynamic Feeder Re
 ## 🏗 System Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Data_Pipeline [Data Ingestion & Preprocessing]
-        A[eMARC Smart Meter Data\n15-min interval kW] --> C[Data Cleaning & Gap Interpolation]
-        B[Open-Meteo Weather API\nHourly Temp & CDD] --> C
-        C --> D[Processed Cluster Dataset\nclusters.parquet]
+flowchart LR
+    subgraph Inputs [Data and models]
+        A[eMARC smart-meter data<br/>+ weather] --> B[Day-ahead XGBoost<br/>ml/]
+        C[city.yaml + seed] --> D[City generator<br/>city/generate.py]
+        D --> E[15-min demand model<br/>city/demand.py]
+        E --> F[Meters and head-end<br/>city/meters.py]
+        F --> G[15-min XGBoost<br/>ml/train_short.py]
     end
 
-    subgraph ML_Forecasting [24-Hour Load Forecasting]
-        D --> E[Feature Engineering\nLags >=24h, Rolling Stats, Calendar]
-        E --> F[XGBoost Model Training\nEarly Stopping & Refit]
-        F --> G[Grid-Calibrated Forecast\ndata/forecast.csv]
+    subgraph Loop [Simulation service: sim/service.py, one pass per step]
+        direction TB
+        S1[1 Measure] --> S2[2 Power flow<br/>OpenDSS]
+        S2 --> S3[3 Forecast<br/>next step + P10-P90]
+        S3 --> S4[4 Detect<br/>risk classes, alerts]
+        S4 --> S5[5 Validate candidates<br/>radial, thermal, voltage]
+        S5 --> S6[6 Act<br/>apply, propose or hold]
+        S6 --> S7[7 Record]
     end
 
-    subgraph Optimization_Engine [Physics Engine & Reconfiguration]
-        G --> H[Grid Engine\ngrid/engine.py]
-        I[Network Model\ngrid/network.dss] --> H
-        H --> J{Overload Detected?\nLoading > 85%}
-        J -- No --> K[Status: no_action]
-        J -- Yes --> L[Greedy Switch Search\nEvaluate SW1A-SW6A]
-        L --> M{AC Power Flow Feasible?\n0.95 <= V <= 1.05 pu\nLoading <= 100%}
-        M -- Yes --> N[Status: rerouted\nApply Optimal Tie Switches]
-        M -- No --> O[Status: no_safe_option\nRetain Safe Topology]
-    end
-
-    subgraph Operator_UI [Decision Support Dashboard]
-        K --> P[Streamlit Operator Console\napp/app.py]
-        N --> P
-        O --> P
-        P --> Q[Plotly Topology Map]
-        P --> R[Day-Ahead Alert Scanner]
-        P --> S[Manual Override & Action Log]
-    end
+    B --> S3
+    G --> S3
+    F --> S1
+    S7 --> DB[(Database<br/>SQLite or PostgreSQL)]
+    DB --> UI[Operator dashboard<br/>8 live pages + sandbox]
+    UI -- commands --> DB
+    DB -- commands --> Loop
 ```
+
+- **Two programs, one state.** The simulation service runs the network; the dashboard (and `sim/control.py`) only read the database and send commands to it. Every page and every browser shows the same state, and a restarted service continues where it stopped.
+- **Two networks, one code base.** The classic six-transformer network (`project/config/`) and a synthetic city (`project/cities/<name>/config/`, chosen with `--city`) run through the same engine, controller, service and dashboard.
+- **Two views of every step in the city.** The **true loads** drive the power flow and judge the outcome; what the **operator saw** through the meters drives the forecast, the risk classes and the decisions.
 
 ---
 
 ## 🔌 Distribution Network & Switching Topology
+
+This section describes the **classic network** (real eMARC data); the 44-transformer synthetic city uses the same scheme (block a / block b, home and alternate switches, ties between feeder ends) on a larger, generated network (see [Synthetic City](#-synthetic-city-phase-7)).
 
 The electrical network represents an urban 11 kV / 0.415 kV distribution system with two radial feeders originating from a central 33/11 kV substation (`SUB`). In `network.dss`, `Line.A2`, `Line.B2` and `TIE1` are declared with `switch=yes`, which OpenDSS turns into 0.001 km switches: each feeder is 2 km of cable (`A1`+`A3`, `B1`+`B3`), and `A2`/`B2` act as sectionalising switches (asset IDs `SW-014`, `SW-015`) used by the MV transfers.
 
@@ -368,18 +417,21 @@ Minimum voltage is the lowest phase voltage on any bus, including the 0.415 kV c
 
 ## 🖥 Operator Dashboard (Streamlit & Plotly)
 
-One multi-page web app (`streamlit run app/app.py`, from `project/`). The **live network** pages show what the simulation service is doing (see the next section): they only read the database, and their buttons only send commands to the service, so every page and every browser shows the same, single state. If the service is not running, any page offers a **Start the service** button (it starts as a separate process and keeps running when the dashboard is closed).
+One multi-page web app (`streamlit run app/app.py`, from `project/`; add `-- --city demo` for the synthetic city). The **live network** pages show what the simulation service is doing (see the next section): they only read the database, and their buttons only send commands to the service, so every page and every browser shows the same, single state. If the service is not running, any page offers a **Start the service** button (it starts as a separate process and keeps running when the dashboard is closed).
 
 | Page | Gap item | What it shows |
 |:---|:---:|:---|
 | **A Overview** | G3 | Substations, feeders, transformers, switches, meters and capacity; total load, peak loading (with the change made by control), active alerts, configuration; simulated and wall-clock time, season, target and achieved speed, time of the last power flow; the last 48 hours with and without control |
 | **B Network** | G4 | Single-line diagram for the hour just measured or the next hour's forecast; click a transformer (or pick it, or a feeder) to inspect rating, load, kVA, measured and forecast loading, P90, risk class, limits and its switching options; feeder current, voltage and the transformers it supplies; every switch's state |
-| **C Transformers** | G5 | Sortable table: rating, load, loading %, forecast %, P90 %, next hour %, risk class, time; select a row for that transformer's history (48 h, 7 days or the whole run) |
-| **D Forecasting** | G6 | Scored and pending forecasts, MAE, nRMSE, bias; MAE or RMSE per day or week by transformer; any model version in the database (e.g. the live one); forecast against actual with the P10–P90 band |
+| **C Transformers** | G5 | Sortable table: rating, load, loading %, forecast %, P90 %, next step %, risk class, time (with meters also where the value came from and the true loading); select a row for that transformer's history (48 h, 7 days or the whole run) |
+| **D Forecasting** | G6 | Scored and pending forecasts of the current run, MAE, nRMSE, bias; MAE or RMSE per day or week by transformer; opens on the model the service uses (any other version in the database can be picked); forecast against actual with the P10–P90 band |
 | **E Alerts and decisions** | G7 | The proposal waiting for the operator with **Approve** / **Reject**; alerts of the hour and their history; every recommendation with its switching plan, before/after bars, checks, confidence and every candidate evaluated with its outcome and reason |
-| **F Controls** | G8 | Start/stop the service; resume, pause, single step; speed (incl. accelerated and custom); jump to a date and hour, or a new run from it; scenario; season (shown; demand profiles by season arrive with the synthetic city, Phase 7); operating mode; approval policy; threshold; MV transfers; roll back, reset, emergency stop. Every control starts from the value in force in the service |
+| **F Controls** | G8 | Start/stop the service; resume, pause, single step; speed (incl. accelerated and custom); jump to a date and hour, or a new run from it; scenario; season (the synthetic city's demand follows it); operating mode; approval policy; threshold; MV transfers; roll back, reset, emergency stop. Every control starts from the value in force in the service |
 | **G Audit log** | G9 | Events (filter by simulated day, transformer, event type and severity), recommendations with candidates, switch operations, alerts and commands with their results; for the live network or the sandbox |
-| **What-if replay** | – | The sandbox described below |
+| **H Data quality** | C5 | A synthetic city with meters: transformer meters reporting, smart-meter readings received and in transit, suspect (stuck) meters, concentrator outages; per transformer where its value came from, seen against true loading and the last two hours of smart-meter estimate quality; late and suspect readings |
+| **What-if replay** | – | The sandbox described below (six-transformer network only) |
+
+The labels follow the configuration: "hour" on the six-transformer network, "step" (15 minutes) in a city.
 
 **What-if replay (sandbox).** The single-page dashboard of earlier phases is kept as a sandbox page: pick any hour with a slider and study it with its own controller and switch configuration, separate from the live network:
 
@@ -403,10 +455,10 @@ Recommendation numbers (REC-nnnn) are unique across the sandbox and the live net
 
 ## 🔁 Closed-Loop Simulation Service
 
-The replay dashboard answers "what if?" for one hour at a time. The simulation service runs the whole system **hour after hour on a clock**, the way a deployed digital twin would, with every result written to the database.
+The replay dashboard answers "what if?" for one hour at a time. The simulation service runs the whole system **step after step on a clock** (hourly on the six-transformer network, every 15 minutes in a city), the way a deployed digital twin would, with every result written to the database.
 
 ### One Step of the Loop (`sim/orchestrator.py`)
-Step *t* is the boundary at the end of hour *t*:
+Step *t* is the boundary at the end of hour (or 15-minute step) *t*. The table describes the six-transformer network; the city differences are noted below it.
 
 | # | Stage | What happens |
 |:-:|:---|:---|
@@ -418,7 +470,9 @@ Step *t* is the boundary at the end of hour *t*:
 | 6 | Apply or propose | *monitor*: nothing; *recommend*: a proposal waits for the operator and the clock pauses so it cannot go stale; *auto*: applied before hour *t* + 1 begins |
 | 7 | Record | One `sim_steps` row: what was measured, forecast and decided, and how long each stage took |
 
-Deciding at the boundary means a switching change, automatic or approved, is in force for the whole hour it was computed for, and the next step measures its effect. Forecasts come from the committed file by default (`forecast_source: precomputed`, reproducible anywhere); with `live` the loop calls `forecast_at(t)` from `data/processed/clusters.parquet` at run time and issues each forecast 24 h ahead (a test checks that both give the same values).
+**In a city** the measure stage has two views (the true loads, and what the operator saw through the meters, Phase 8), the forecast is the 15-minute-ahead model (Phase 9; `forecast_source: short`, or `persistence`), and the controller holds a safe reroute until the normal configuration would be 5 points under the threshold (Phase 10).
+
+Deciding at the boundary means a switching change, automatic or approved, is in force for the whole step it was computed for, and the next step measures its effect. On the six-transformer network forecasts come from the committed file by default (`forecast_source: precomputed`, reproducible anywhere); with `live` the loop calls `forecast_at(t)` from `data/processed/clusters.parquet` at run time and issues each forecast 24 h ahead (a test checks that both give the same values).
 
 ### Simulation Clock (`core/clock.py`, `config/simulation.yaml`)
 Simulated time and wall-clock time are separate. Controls: resume, pause, single step, jump to any hour, restart (a new run from the beginning) and speed: any factor (3600 = one simulated hour per second), `accelerated` (one simulated **year in 24 hours**, i.e. a 60-minute step every 9.863 s, or a 15-minute step every 2.466 s once the synthetic city of Phase 7 runs at 15 minutes) or `max`. The clock measures the speed it actually achieves. If a step overruns its slot, it carries on from the present at the same pace rather than bursting through the missed steps (`catch_up: true` changes that) and logs a "falling behind" event.
@@ -428,6 +482,8 @@ Simulated time and wall-clock time are separate. Controls: resume, pause, single
 - It is steered only through **commands** written to the database (`commands` table): by the dashboard's pages or from a terminal (`sim/control.py`). Commands are executed in order and each records its result or the reason it was refused (for example, approving a proposal after the scenario changed).
 - **Restart recovery:** after a crash or Ctrl+C, the next start continues with the step after the last one recorded. A test kills the service process part way through S3 and restarts it: every hour is recorded exactly once and the outcome equals the uninterrupted run.
 - Only one service per name runs at a time: a second one refuses to start while the first one's heartbeat is fresh.
+- **Runs and timelines:** a new run, a jump in time or a scenario change deletes what earlier runs wrote from that time on (measurements, meter readings, run-time forecasts), so runs over the same dates never mix. A new run uses the configured forecast source.
+- **Failures:** a step that raises an error pauses the clock (status `step_failed`), records a critical event and shows the reason on every page; the service keeps serving commands.
 
 ### Closed-Loop Results (`sim/closed_loop.py`, `docs/closed_loop.csv`)
 Each benchmark scenario run hour by hour in automatic mode over the 1,073 test hours. Unlike the per-hour benchmark above, a reroute stays in force until the controller restores the normal configuration, decisions are taken an hour ahead on the forecast, and the effect is judged on what the meters then measure:
@@ -689,6 +745,8 @@ It keeps serving commands. Resuming tries the step again; jumping or starting a 
 - **Continuous integration** (`.github/workflows/tests.yml`): on every push GitHub installs `requirements.txt`, checks the installation and runs the fast test suite. The two tests that need the eMARC parquet file are skipped there.
 - **Service options:** `python sim/service.py --forecast` now accepts the city's `persistence` and `short` sources.
 - **One timeline per run (Phase 10.1):** runs on one database can cover the same simulated times with different scenarios or forecasts. A new run, a jump or a scenario change now deletes what earlier runs wrote from its start on: the city's measurements and meter readings, and the run-time forecasts. A new run also uses the configured forecast source instead of the one saved by an older run. The Forecasting page opens on the model the service is using and scores only the current run's run-time forecasts.
+- **City decision confidence (Phase 10.2):** the confidence of a decision is the probability that every transformer stays under the threshold given the forecast's typical error. A city now uses its own forecast's error (about 4% for the 15-minute model) instead of the six-transformer network's day-ahead error (about 33%), which had made even safe restores read "low".
+- **Isolated dashboard tests (Phase 10.3):** OpenDSS crashes when it is used from another thread than the one that loaded it. The replay page uses it from a worker thread, so its tests run in a process of their own (`tests/test_dashboard_process.py`); this fixed the failing GitHub check.
 - **Dashboard wording:** labels follow the step length and forecast horizon of the configuration in force ("next step" and "15-minute-ahead" for a city), and history windows cover the stated number of hours.
 - **Report:** `docs/REPORT.md` gathers every result of the project in one place as a draft results chapter.
 
@@ -697,18 +755,18 @@ It keeps serving commands. Resuming tries the step again; jumping or starting a 
 ## 🧩 Configuration, Asset IDs & Logging
 
 ### Configuration (`project/config/`)
-Every setting that used to be a constant in the code now lives in one of four YAML files, and `core/config.py` checks each file when it is loaded: an invalid value (a threshold above the hard limit, an unknown transformer, a malformed ID, a split that leaves no test data) stops the program with a message naming the file and key.
+Every setting that used to be a constant in the code now lives in one of six YAML files, and `core/config.py` checks each file when it is loaded: an invalid value (a threshold above the hard limit, an unknown transformer, a malformed ID, a split that leaves no test data) stops the program with a message naming the file and key.
 
 | File | Contents |
 |:---|:---|
 | `grid.yaml` | Substation, feeders, transformers (ratings, buses, loads), switches with their normal state, the 20% movable block and the move table |
-| `operations.yaml` | 85% overload threshold, 100% hard limit, 0.95–1.05 pu voltage band, line limit, greedy stop rule, dashboard slider range and colour bands |
+| `operations.yaml` | 85% overload threshold, 100% hard limit, 0.95–1.05 pu voltage band, line limit, greedy stop rule, candidate scope, restore deadband (`restore_margin_pct`), risk classes, confidence levels, dashboard slider range and colour bands |
 | `scenarios.yaml` | Benchmark S1–S5, the quick flat-load scenarios and the dashboard presets — defined once |
 | `forecasting.yaml` | Data window, cleaning rules, household-to-transformer clusters, weather coordinates, split, XGBoost settings, 340 kW scaling target, interval method and window, v2 experiment settings |
 | `storage.yaml` | Database URL (SQLite file by default), batch size, retention, labels for the imported forecasts |
 | `simulation.yaml` | Simulation clock (range, step, speed, accelerated factor, catch-up), orchestrator (scenario, first mode, forecast source, pause on recommendation), service settings (polling, heartbeat) and the season calendar |
 
-A synthetic city has its own set of these files in `cities/<name>/config/`, written by `city/generate.py`; `--city <name>` (service, control, dashboard, closed-loop and benchmark scripts) or the environment variable `LFDR_CONFIG_DIR` selects it. `grid.yaml` may then list several `substations`, and `operations.yaml` sets `rerouting.candidate_scope: relevant`.
+A synthetic city has its own set of these files in `cities/<name>/config/`, written by `city/generate.py`; `--city <name>` (service, control, dashboard, closed-loop and benchmark scripts) or the environment variable `LFDR_CONFIG_DIR` selects it. `grid.yaml` may then list several `substations`, and `operations.yaml` sets `rerouting.candidate_scope: relevant` and `rerouting.restore_margin_pct: 5`. The city's own `city.yaml` also holds its `meters` and `forecast` sections.
 
 `network.dss` still holds the electrical model that OpenDSS solves; tests check that `grid.yaml` agrees with it (transformers, ratings, buses, loads, switch states and the buses each move connects). Set `LFDR_CONFIG_DIR` to point the whole project at another config folder.
 
@@ -728,7 +786,7 @@ Assets carry IDs in the research specification's scheme, while the short names s
 `core/ids.py` provides the registry and conversions. The forecast files carry an `asset_id` column, and `prepare_data.py` writes `data/processed/meter_registry.csv`, linking every household's meter ID to its transformer.
 
 ### Database
-On first start the dashboard creates `project/data/twin.db` (SQLite), imports `data/forecast.csv` (forecasts and measured loads) and, if present, `data/processed/meter_registry.csv`, then restores the controller from it. To start from a clean history, stop the dashboard and delete `data/twin.db`. The file is local and gitignored.
+Each network has its own SQLite file: `project/data/twin.db` for the six-transformer network and `project/data/city_<name>.db` for a city. On first start the dashboard creates `project/data/twin.db`, imports `data/forecast.csv` (forecasts and measured loads) and, if present, `data/processed/meter_registry.csv`, then restores the controller from it. To start from a clean history, stop the dashboard and delete `data/twin.db`. The file is local and gitignored.
 
 | Table | Holds |
 |:---|:---|
@@ -750,7 +808,7 @@ On first start the dashboard creates `project/data/twin.db` (SQLite), imports `d
 To use PostgreSQL instead, set `url` in `config/storage.yaml` (or the `LFDR_DB_URL` environment variable) to e.g. `postgresql+psycopg://user:password@localhost:5432/feeder` and `pip install "psycopg[binary]"`. The code uses SQLAlchemy Core and dialect-aware inserts, so nothing else changes.
 
 ### Logging
-`core/logging_setup.py` gives every module the same log format. Set `LFDR_LOG_LEVEL=DEBUG` to see each rerouting decision, or `LFDR_LOG_FILE=path` to also write a file. The dashboard always writes `logs/dashboard.log`, the simulation service `logs/service.log`.
+`core/logging_setup.py` gives every module the same log format. Set `LFDR_LOG_LEVEL=DEBUG` to see each rerouting decision, or `LFDR_LOG_FILE=path` to also write a file. The dashboard always writes `logs/dashboard.log`, the simulation service `logs/service.log` (`logs/service_<city>.log` for a city).
 
 ---
 
@@ -762,6 +820,7 @@ Load-Forecasting-Dynamic-Feeder-routing/
 ├── LICENSE                        # MIT licence
 ├── requirements.txt               # Dependency ranges the code works with
 ├── requirements-lock.txt          # Exact versions that reproduced docs/results.csv and docs/metrics.csv
+├── .github/workflows/tests.yml    # Continuous integration: install, check imports, fast tests on every push
 └── project/
     ├── config/                    # All settings, in YAML (see "Configuration, Asset IDs & Logging")
     │   ├── grid.yaml              # Assets, IDs, ratings, switches, movable-load scheme
@@ -808,10 +867,10 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │       └── replay.py          # What-if replay sandbox (the earlier single-page dashboard)
     ├── sim/                       # Closed-loop simulation (Phase 5)
     │   ├── orchestrator.py        # One step: measure, power flow, forecast, detect, validate, apply, record
-    │   ├── sources.py             # Demand and forecast sources (classic eMARC data; precomputed or live forecasts)
+    │   ├── sources.py             # Demand sources (eMARC data; a city with its meters) and forecast sources (precomputed, live, persistence, short)
     │   ├── service.py             # Background service: clock, commands, heartbeat, restart recovery
     │   ├── control.py             # Command-line control of the service (status, pause, speed, approve, ...)
-    │   ├── closed_loop.py         # Closed-loop results for S1-S5 -> docs/closed_loop.csv
+    │   ├── closed_loop.py         # Closed-loop results (S1-S5, or a city's C1-C4) -> docs/closed_loop*.csv
     │   └── benchmark.py           # Step time, throughput, memory, clock accuracy -> docs/performance.csv
     ├── grid/                      # Power systems simulation & reconfiguration
     │   ├── engine.py              # GridEngine: OpenDSS power flow, switching actions, rerouting search
@@ -876,14 +935,15 @@ Load-Forecasting-Dynamic-Feeder-routing/
     │   ├── test_engine_v2.py      # Candidates, reasons, binding constraints, losses, P/Q/S, feeders, MV transfers
     │   ├── test_risk.py           # Risk classes, alerts, confidence
     │   ├── test_decisions.py      # Modes, approval, stale proposals, rollback, emergency stop
-    │   ├── test_dashboard.py      # The dashboard run headless: recommend, approve, roll back, e-stop, auto, restart
+    │   ├── test_dashboard.py      # The replay sandbox run headless: recommend, approve, roll back, e-stop, auto, restart
+    │   ├── test_dashboard_process.py # Runs test_dashboard.py in a process of its own (OpenDSS threading)
     │   ├── test_storage.py        # Schema, imports, filters, batching, retention, restart restores everything
     │   ├── test_simulation.py     # Clock, orchestrator, service commands, kill-and-restart recovery, benchmark
     │   ├── test_pages.py          # Every dashboard page headless; service settings; schema migration
     │   ├── test_city.py           # Generator, multi-substation engine, demand model, calibration, persistence forecast, city in the loop
     │   ├── test_meters.py         # Meter streams, head-end estimates and flags, revisions, operator view against the truth
     │   ├── test_short_forecast.py # Short-horizon forecast: no leakage, published accuracy, closed loop
-    │   ├── test_hardening.py      # Switching deadband, a failed step pauses the service, settings checks
+    │   ├── test_hardening.py      # Deadband, failed steps, one timeline per run, city confidence, settings checks
     │   ├── test_features.py       # No-leakage checks for the 24 h-ahead features
     │   ├── test_forecasting_v2.py # Metadata, peak/overload metrics, intervals, scoring, forecast_at, v2, cold start
     │   ├── synthetic.py           # Synthetic data in the clusters.parquet format (tests only)
@@ -947,9 +1007,10 @@ python project/scripts/smoke_test.py
 ### 1. Launch the Operator Dashboard
 ```bash
 cd project
-streamlit run app/app.py
+streamlit run app/app.py                     # six-transformer network (real eMARC data)
+streamlit run app/app.py -- --city demo      # the synthetic city (note the -- before --city)
 ```
-Open your browser at `http://localhost:8501`. The live pages need the simulation service: start it from any page (**Start the service**) or as in step 5.
+Open your browser at `http://localhost:8501`. The live pages need the simulation service: start it from any page (**Start the service**) or as in step 5. If pages show data from an older run, stop every Python process and start the service again with `--new-run`.
 
 ### 2. Run the Switching Engine & Stress Scenarios
 Quick check of the rerouting algorithm on a flat 300 kW load (the "quick" scenarios in `config/scenarios.yaml`):
@@ -984,7 +1045,7 @@ The dashboard's **Start the service** button is enough. To run it in a terminal 
 ```bash
 python sim/service.py                     # Ctrl+C stops it; starting it again resumes
 ```
-Useful options: `--speed accelerated` (one simulated year per 24 h), `--speed max`, `--mode auto`, `--scenario "S3 EV surge (T4 +200 kW, 18-22 h)"`, `--forecast live` (needs `data/processed/clusters.parquet`), `--paused`, `--new-run`. While it runs, it can also be steered from any terminal:
+Useful options: `--city demo` (the synthetic city), `--speed accelerated` (one simulated year per 24 h), `--speed max`, `--mode auto`, `--scenario "S3 EV surge (T4 +200 kW, 18-22 h)"`, `--forecast live` (needs `data/processed/clusters.parquet`; a city: `short` or `persistence`), `--paused`, `--new-run`. Every `control.py` command also takes `--city demo`. While it runs, it can also be steered from any terminal:
 ```bash
 python sim/control.py status
 python sim/control.py pause                # resume | step | restart | stop
@@ -1002,13 +1063,15 @@ The report tables are produced by:
 python sim/closed_loop.py                  # docs/closed_loop.csv (about 3 min)
 python sim/benchmark.py                    # docs/performance.csv (about 1 min, numbers depend on the computer)
 ```
+For the synthetic city (generation, training the 15-minute forecast, its result tables) see [Running the City](#running-the-city).
 
 ### 6. Running the Tests
 ```bash
 cd project
 python -m pytest                  # full suite, about 7 min (benchmark, closed loop, kill-and-restart, v2 training, cold start)
-python -m pytest -m "not slow"    # everything except those, about 2 min
+python -m pytest -m "not slow"    # everything except those, about 3 min
 ```
+On a computer without the eMARC parquet file two tests are skipped. GitHub Actions runs the fast suite on every push (`.github/workflows/tests.yml`; the badge at the top of this page shows the latest result).
 The what-if replay page's tests (`tests/test_dashboard.py`) are run in a separate process by `tests/test_dashboard_process.py`, because OpenDSS must be loaded on the page's own worker thread; they show as deselected in the main run. `python -m pytest` makes sure the tests run with the Python of the active environment (a bare `pytest` can pick up another environment's copy). The golden tests re-run the scenario benchmark and the forecast evaluation and compare them with `docs/results.csv`, `docs/results_worst_hour.csv` and `docs/metrics.csv` (timing columns excluded); if a change alters any published number, they fail. The dashboard tests start the pages headless: the sandbox through the S3 and S4 worst hours, and every live page against a database filled by a real service run (approving a proposal, changing the threshold, filtering the log).
 
 > **Windows note:** while loading, the OpenDSS library raises and handles an internal exception (code `0xE0465043`, "FPC" for Free Pascal). Python's crash reporter prints such events as "Windows fatal exception" even though nothing failed. The test setup and the dashboard load OpenDSS before switching the crash reporter on, so this no longer appears.
@@ -1066,6 +1129,9 @@ def evaluate_and_reroute(loads_kw: dict, threshold: float = 85.0, use_mv: bool =
 
 ## 🔮 Future Enhancements
 
+- [ ] **Planning Output:** report the transformers that repeatedly have no safe switching option (every neighbour full) as reinforcement candidates.
+- [ ] **Field Data:** retrain and test the 15-minute forecast on real transformer-meter and smart-meter streams, to measure its true edge over the last reading.
+- [ ] **Smart-Meter-Only Networks:** study networks without transformer meters, where the head-end's estimates are the operator's only view.
 - [ ] **Multi-Period Lookahead Optimization:** Incorporate a receding-horizon Model Predictive Control (MPC) formulation to penalize excessive switch wear over 24 hours.
 - [ ] **Distributed Energy Resources (DERs):** Integrate rooftop Solar PV arrays and Battery Energy Storage Systems (BESS) for localized peak shaving.
 - [ ] **Reinforcement Learning (RL):** Benchmark deep Q-networks (DQN) or PPO agents against the greedy heuristic for complex meshed distribution grids.
